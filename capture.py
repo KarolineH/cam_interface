@@ -37,6 +37,11 @@ class EOS(object):
         self.config = self.camera.get_config()
         self.mode = self.get_camera_mode() # detects the manual switch state: 0 == PHOTO, 1 == VIDEO
 
+
+
+    ''' Universal Methods, work in both PHOTO and VIDEO mode '''
+
+
     def list_all_config(self):
         '''
         List all available configuration options communicated via USB and supported by gphoto2
@@ -59,11 +64,43 @@ class EOS(object):
         if config_name in self.list_all_config():
             conf = gp.check_result(gp.gp_widget_get_child_by_name(self.config, config_name))
             value = gp.check_result(gp.gp_widget_get_value(conf))
-            choices = list(conf.get_choices())
+            try:
+                choices = list(conf.get_choices())
+            except:
+                choices = None
+                print(f"Config {config_name} provides no choices")
             return value, choices
         else:
             print(f"Config {config_name} not found")
             return None
+    
+    def get_file_info(self, file_path):
+        '''Retrieve information about a specific file saved on the device.'''
+        folder, name = os.path.split(file_path)
+        info = self.camera.file_get_info(folder, name)
+        #size = info.file.size
+        #file_type = info.file.type
+        #timestamp = datetime.fromtimestamp(info.file.mtime).isoformat(' ')
+        return info
+
+    def list_files(self, path='/store_00020001/DCIM'):
+        '''List all media files saved on the device (default) or at a specific location on the device.'''
+        folders = [os.path.join(path, folder[0]) for folder in self.camera.folder_list_folders(path)]
+        files = [os.path.join(folder,file_name[0]) for folder in folders for file_name in self.camera.folder_list_files(folder)]
+        return files
+    
+    def download_file(self, camera_path, target_path='.'):
+        '''Download a specific file saved on the device to the target path on the PC.'''
+        folder, name = os.path.split(camera_path)
+        cam_file = self.camera.file_get(folder, name, gp.GP_FILE_TYPE_NORMAL)
+        target_file = os.path.join(target_path, name)
+        cam_file.save(target_file)
+        return
+
+
+
+    ''' PHOTO mode only methods'''
+
     
     def trigger_AF(self):
         '''
@@ -86,9 +123,9 @@ class EOS(object):
     def set_AF_location(self, x, y):
         '''
         Set the auto focus point to a specific pixel location.
-        Only supported in PHOTO mode.
         (Equivalent to the bash command --set-config eoszoomposition=x,y)
         Supported range is the image resolution, normally (1,1) to (8192,5464)
+        Only supported in PHOTO mode.
         '''
         if self.mode == 1:
             print("Camera must be in PHOTO mode to manually set auto focus location")
@@ -103,7 +140,11 @@ class EOS(object):
         Capture a preview image (i.e. viewfinder frame, with the mirror up) and save it to the target file.
         Optionally display the image.
         The taken image is NOT saved on the device, only on the computer.
+        Only supported in PHOTO mode.
         '''
+        if self.mode == 1:
+            print("Camera must be in PHOTO mode to capture a preview")
+            return
         camera_file = gp.check_result(gp.gp_camera_capture_preview(self.camera))
         camera_file.save(target_file)
         if show:
@@ -117,7 +158,11 @@ class EOS(object):
         The file will also be saved to the device and the file name will follow the camera's set naming convention.
         Optionally trigger auto-focus before capturing the image, or capture immediately.
         If the auto-focus fails, an immediate capture will be taken instead. 
+        Only supported in PHOTO mode.
         '''
+        if self.mode == 1:
+            print("Camera must be in PHOTO mode to capture static images")
+            return
         if AF:
             try:
                 file_path = self.camera.capture(gp.GP_CAPTURE_IMAGE) # Capture_image always triggers AF and ONLY captures an image when AF was successful, otherwise returns I/O error
@@ -137,8 +182,11 @@ class EOS(object):
         Taken an immeditate capture, without triggering the auto-focus first.
         Optionally download the image to the target path.
         The file will also be saved to the device and the file name will follow the camera's set naming convention.
+        Only supported in PHOTO mode.
         '''
-        # Capture an image without AF
+        if self.mode == 1:
+            print("Camera must be in PHOTO mode to capture static images")
+            return
         release = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'eosremoterelease'))
         release.set_value('Immediate') # 5 == Immediate
         OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
@@ -163,44 +211,54 @@ class EOS(object):
         OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
         return
 
-    def get_file_info(self, file_path):
-        '''Retrieve information about a specific file saved on the device.'''
-        folder, name = os.path.split(file_path)
-        info = self.camera.file_get_info(folder, name)
-        #size = info.file.size
-        #file_type = info.file.type
-        #timestamp = datetime.fromtimestamp(info.file.mtime).isoformat(' ')
-        return info
 
-    def list_files(self, path='/store_00020001/DCIM'):
-        '''List all media files saved on the device (default) or at a specific location on the device.'''
-        folders = [os.path.join(path, folder[0]) for folder in self.camera.folder_list_folders(path)]
-        files = [os.path.join(folder,file_name[0]) for folder in folders for file_name in self.camera.folder_list_files(folder)]
-        return files
+    ''' VIDEO mode only methods'''
+
+
+    def record_video(self, t=1, download=True, target_path='.'):
+        '''
+        Record a video for a duration of t seconds.
+        Resolution and file formats are set in the camera's menu. Storage medium must be inserted.
+        Only supported in VIDEO mode.
+        '''
+        if self.mode == 0:
+            print("Camera must be in VIDEO mode to record full-res videos")
+            return
+        rec_button = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'movierecordtarget'))
+        rec_button.set_value('Card')
+        OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+        time.sleep(t)
+        rec_button.set_value('None')
+        OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
     
-    def download_file(self, camera_path, target_path='.'):
-        '''Download a specific file saved on the device to the target path on the PC.'''
-        folder, name = os.path.split(camera_path)
-        cam_file = self.camera.file_get(folder, name, gp.GP_FILE_TYPE_NORMAL)
-        target_file = os.path.join(target_path, name)
-        cam_file.save(target_file)
+        timeout = time.time() + 10
+        if download:
+            while True:
+                # potential for errors if the new file event is not caught by this wait loop
+                # loop times out after 10 seconds
+                event_type, event_data = self.camera.wait_for_event(1000)
+                if event_type == gp.GP_EVENT_FILE_ADDED:
+                    cam_file = self.camera.file_get(event_data.folder, event_data.name, gp.GP_FILE_TYPE_NORMAL)
+                    cam_file.save(target_path+'/'+event_data.name)
+                    return
+                elif time.time() > timeout:
+                    print("Waiting for new file event timed out, please find the file saved on the device.")
+                    return
         return
-
-    # def record(self, t=10):
-    #     # Record video for a duration of t seconds
-    #     pass
 
 if __name__ == '__main__':
     #port = gphoto_util.choose_camera()
     #ports = gphoto_util.detect_EOS_cameras()
     cam1 = EOS(port=None)
     #cam1.set_AF_location(1,1)
-    #value, choices = cam1.get_config('shutterspeed')
+    #value, choices = cam1.get_config('autofocusdrive')
     #file_location = cam1.capture_preview(show=False)
+    #cam1.capture_immediate(download=False)
     #cam1.trigger_AF()
     #cam1.list_files()
     #cam1.capture_image(AF=False)
     #cam1.get_file_info(file_path='/store_00020001/DCIM/103_1109/IMG_0426.JPG')
-    cam1.download_file(camera_path='/store_00020001/DCIM/103_1109/IMG_0426.JPG')
+    #cam1.download_file(camera_path='/store_00020001/DCIM/103_1109/IMG_0426.JPG')
+    cam1.record_video()
     #config_names = cam1.list_all_config()
     print("Camera initalised")
