@@ -17,6 +17,10 @@ gphoto2 --capture-image-and-download # save directly to PC, always triggers AF
 gphoto2 --capture-image # just take 1 image and save to camera
 gphoto2 --trigger-capture
 gphoto2 --set-config eosremoterelease=6 --set-config eosremoterelease=2 --wait-event-and-download=2s # this is a half press (triggering AF), followed by full press and download
+# eosremoterelease
+    # 3 followed by 8 triggers AF and then releases shutter 
+    # 2 / 5 (immediate) both appear to trigger JUST the shutter
+    # 3 followed by 6 only triggers AF, no capture
 
 # when in VIDEO mode, toggle recording:
 gphoto2 --set-config /main/settings/movierecordtarget=0 # REC

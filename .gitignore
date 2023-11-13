@@ -1,3 +1,9 @@
+# Images and videos
+*.jpg
+*.JPG
+*.mov
+*.mjpg
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
