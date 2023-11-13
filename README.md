@@ -1,2 +1,8 @@
 # cam_interface
-Pyhton code to interface a Canon EOS R5 C camera
+Python interface for a Canon EOS R5 C camera.
+
+
+Requirements:\
+[gphoto2 >= 2.5.27]()\
+[python-gphoto2 v2.5.1](https://github.com/jim-easterbrook/python-gphoto2)\
+tested with Python 3.10.12
