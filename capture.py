@@ -4,6 +4,7 @@ import gphoto_util
 from PIL import Image
 from datetime import datetime
 import time
+from subprocess import Popen, PIPE
 
 class EOS(object):
     """
@@ -191,7 +192,7 @@ class EOS(object):
         release.set_value('Immediate') # 5 == Immediate
         OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
         if download:
-            timeout = time.time() + 10
+            timeout = time.time() + 5
             while True:
                 # potential for errors if the new file event is not caught by this wait loop
                 # loop times out after 10 seconds
@@ -209,6 +210,70 @@ class EOS(object):
                     return
         release.set_value('None')
         OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+        return
+    
+    def record_preview_video(self, t=1, target_file ='./prev_vid.mp4', resolution_prio=False):
+        '''
+        Capture a series of previews (i.e. the viewfinder frames, with mirror up)
+        for a duration of t seconds, and save them as a video file.
+        The file will not be saved to the device.
+        Note that this function will overwrite existing files in the specified location!
+        Only supported in PHOTO mode.
+        '''
+        if self.mode == 1:
+            print("Camera must be in PHOTO mode to capture preview videos")
+            return
+        if os.path.exists(target_file): # overwrite existing file to prevent ffmpeg error
+            os.remove(target_file)
+
+        # if a higher resolution is the priority, record in 'eosmoviemode' at 1024x576 and ~25 fps
+        # if a higher frame rate is the priority, record at 960x640 and close to ~60 fps
+        if resolution_prio:
+            mode = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'eosmoviemode'))
+            mode.set_value(1)
+            try:
+                OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+            except:
+                OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+        else:
+            frame_size = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'liveviewsize'))
+            frame_size.set_value('Large') # set to max size: 960x640
+            OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+
+        # Attempting to recreate the bash command "gphoto2 --capture-movie"
+        # under the hood, this just takes repeated preview captures
+        # see https://github.com/gphoto/gphoto2/blob/f632dcccfc2f27b7e510941335a80dfc986b4bf2/gphoto2/actions.c#L1053
+        # sp.call(['gphoto2 --capture-movie=2s'], shell=True) # Can't call the bash command here, because I/O is busy
+        #OK, path = gp.gp_camera_capture(self.camera, gp.GP_CAPTURE_MOVIE) # error: function not supported
+        ffmpeg_command = [
+            'ffmpeg', 
+            '-f', 'image2pipe',           # Input format
+            '-vcodec', 'mjpeg',
+            '-i', '-',                    # Input comes from a pipe
+            '-c:v', 'libx264',            # Video codec to use for encoding
+            '-pix_fmt', 'yuvj422p',        # Output pixel format
+            target_file                   # Output file path
+        ]
+
+        ffmpeg = Popen(ffmpeg_command, stdin=PIPE)
+
+        start_time = time.time()  # Start the timer
+        while True:
+            if time.time() - start_time > t:
+                break  # Stop recording after t seconds
+            capture = self.camera.capture_preview()
+            filedata = capture.get_data_and_size()
+            data = memoryview(filedata)
+            ffmpeg.stdin.write(data.tobytes())
+        ffmpeg.stdin.close()
+        ffmpeg.wait()
+
+        if resolution_prio:
+            mode.set_value(0)
+            try:
+                OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+            except:
+                OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
         return
 
 
@@ -231,7 +296,7 @@ class EOS(object):
         rec_button.set_value('None')
         OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
     
-        timeout = time.time() + 10
+        timeout = time.time() + 5
         if download:
             while True:
                 # potential for errors if the new file event is not caught by this wait loop
@@ -259,6 +324,7 @@ if __name__ == '__main__':
     #cam1.capture_image(AF=False)
     #cam1.get_file_info(file_path='/store_00020001/DCIM/103_1109/IMG_0426.JPG')
     #cam1.download_file(camera_path='/store_00020001/DCIM/103_1109/IMG_0426.JPG')
-    cam1.record_video()
+    #cam1.record_video()
+    cam1.record_preview_video(t=4, target_file ='./res_first.mp4', resolution_prio=True)
     #config_names = cam1.list_all_config()
     print("Camera initalised")
