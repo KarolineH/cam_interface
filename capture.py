@@ -97,11 +97,43 @@ class EOS(object):
         target_file = os.path.join(target_path, name)
         cam_file.save(target_file)
         return
+    
+    def manual_focus(self, step=6):
+        '''
+        Manually drive the focus nearer or further in three different increment sizes.
+        This function will have to be called repeatedly to achieve a specific focus distance.
+        To bring the focus point nearer, use [0,1,2] for [small, medium, large] increments.
+        To bring the focus point further, use [4,5,6] for [small, medium, large] increments.
+        '''
 
+        # 0,1,2 == small, medium, large increment --> nearer
+        # 3 == none
+        # 4,5,6 == small, medium, large increment --> further 
+        mf = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'manualfocusdrive'))
+        mf.set_value(list(mf.get_choices())[step])
+        OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+        mf.set_value(list(mf.get_choices())[3]) # set back to 'None'
+        OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+        return
 
 
     ''' PHOTO mode only methods'''
 
+    def set_image_format(self, format=0, list_choices=False):
+        '''
+        Change the target image format, or optionally only list the available options.
+        Always treturns the (new) currently active setting.
+        Only supported in PHOTO mode.
+        '''
+        im_format = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'imageformat'))
+        choices = list(im_format.get_choices())
+        if list_choices:
+            for i in range(len(choices)):
+                print(i, choices[i])
+            return im_format.get_value()
+        OK = gp.check_result(gp.gp_widget_set_value(im_format, choices[format]))
+        OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+        return choices[format]
     
     def trigger_AF(self):
         '''
@@ -325,6 +357,11 @@ if __name__ == '__main__':
     #cam1.get_file_info(file_path='/store_00020001/DCIM/103_1109/IMG_0426.JPG')
     #cam1.download_file(camera_path='/store_00020001/DCIM/103_1109/IMG_0426.JPG')
     #cam1.record_video()
-    cam1.record_preview_video(t=4, target_file ='./res_first.mp4', resolution_prio=True)
+    #cam1.manual_focus(step=3)
+    #cam1.record_preview_video(t=4, target_file ='./res_first.mp4', resolution_prio=True)
     #config_names = cam1.list_all_config()
+    cam1.set_image_format(list_choices=True)
+    cam1.set_image_format(0)
+
+    cam1.capture_image(AF=True)
     print("Camera initalised")
