@@ -123,24 +123,43 @@ class EOS(object):
         Change the aperture (f-number), or optionally only list the available options.
         Always treturns the (new) currently active setting.
         Input value should be of type int, float, or string 'AUTO'
+        Works slightly differently in PHOTO and VIDEO mode, so both are unified in this method.
+
+        WARNING: !! In VIDEO mode, it is unclear if the AUTO setting works. Might have to set 'Iris Mode' to 'Automatic' in the camera menu if you need auto aperture. !!
         '''
 
-        choices = [2.8, 3.2, 3.5, 4, 4.5, 5, 5.6, 6.3, 7.1, 8, 9, 10, 11, 13, 14, 16, 18, 20, 22, 25, 29, 32]
-
-        if value == 'AUTO':
-            value = 'implicit auto'
+        auto = False
+        if self.mode == 0:
+            # in PHOTO mode
+            choices = [2.8, 3.2, 3.5, 4, 4.5, 5, 5.6, 6.3, 7.1, 8, 9, 10, 11, 13, 14, 16, 18, 20, 22, 25, 29, 32]
+            if value == 'AUTO':
+                auto = True
+                value = 'Unknown value 00ff'
         else:
+            # in VIDEO mode
+            choices = [2.8, 3.2, 3.5, 4, 4.5, 5, 5.6, 6.3, 7.1, 8, 9, 10, 11, 14, 16, 18, 20, 22, 25, 29, 32] # option 13 is missing
+            if value == 'AUTO':
+                auto = True
+                value = 'implicit auto'
+
+        if not auto:
             value = float(value)
+            # if the exact value specified is not supported, use the closest option
             if value not in choices:
                 closest = min(choices, key=lambda x: abs(x - value))
                 print(f'Aperture of {value} not supported, using closest option of {closest}')
                 value = closest
+            try:
+                # gphoto2 only accepts strings formated as proper floats or integers, no ints with trailing zeros
+                if value == int(value):
+                    value = int(value)
+            except:
+                pass
 
         aperture = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'aperture'))
         if list_choices:
             print(choices)
             return aperture.get_value()
-        
         aperture.set_value(str(value))
         OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
         return str(value)
@@ -422,9 +441,10 @@ if __name__ == '__main__':
     #cam1.manual_focus(value=3)
     #cam1.record_preview_video(t=4, target_file ='./res_first.mp4', resolution_prio=True)
     #config_names = cam1.list_all_config()
-    cam1.set_aperture('AUTO')
+    cam1.set_aperture(20)
     cam1.set_image_format(list_choices=True)
     cam1.set_image_format(0)
+
 
     cam1.capture_image(AF=True)
     print("Camera initalised")
