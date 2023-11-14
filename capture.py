@@ -37,6 +37,8 @@ class EOS(object):
         self.camera.init()
         self.config = self.camera.get_config()
         self.mode = self.get_camera_mode() # detects the manual switch state: 0 == PHOTO, 1 == VIDEO
+        if self.mode == 0:
+            self.set_exposure_manual()
 
 
 
@@ -57,7 +59,7 @@ class EOS(object):
         switch = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'eosmovieswitch'))
         value = gp.check_result(gp.gp_widget_get_value(switch))
         return int(value)
-    
+
     def get_config(self, config_name=''):
         '''
         Get the current value and all choices of a named configuration
@@ -98,7 +100,7 @@ class EOS(object):
         cam_file.save(target_file)
         return
     
-    def manual_focus(self, step=6):
+    def manual_focus(self, value=3):
         '''
         Manually drive the focus nearer or further in three different increment sizes.
         This function will have to be called repeatedly to achieve a specific focus distance.
@@ -110,30 +112,90 @@ class EOS(object):
         # 3 == none
         # 4,5,6 == small, medium, large increment --> further 
         mf = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'manualfocusdrive'))
-        mf.set_value(list(mf.get_choices())[step])
+        mf.set_value(list(mf.get_choices())[value])
         OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
         mf.set_value(list(mf.get_choices())[3]) # set back to 'None'
         OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
         return
+    
+    def set_aperture(self, value='AUTO', list_choices=False):
+        '''
+        Change the aperture (f-number), or optionally only list the available options.
+        Always treturns the (new) currently active setting.
+        Input value should be of type int, float, or string 'AUTO'
+        '''
 
+        choices = [2.8, 3.2, 3.5, 4, 4.5, 5, 5.6, 6.3, 7.1, 8, 9, 10, 11, 13, 14, 16, 18, 20, 22, 25, 29, 32]
+
+        if value == 'AUTO':
+            value = 'implicit auto'
+        else:
+            value = float(value)
+            if value not in choices:
+                closest = min(choices, key=lambda x: abs(x - value))
+                print(f'Aperture of {value} not supported, using closest option of {closest}')
+                value = closest
+
+        aperture = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'aperture'))
+        if list_choices:
+            print(choices)
+            return aperture.get_value()
+        
+        aperture.set_value(str(value))
+        OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+        return str(value)
+    
 
     ''' PHOTO mode only methods'''
 
-    def set_image_format(self, format=0, list_choices=False):
+
+    def set_exposure_manual(self):
+        '''
+        Set the camera's auto-exposure mode to manual, so that shutter, aperture, and iso can be set remotely.
+        Only supported in PHOTO mode.
+        '''
+        exp_mode = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'autoexposuremodedial'))
+        exp_mode.set_value('Fv') # 'Fv' == Canon's 'Flexible-Priority Auto Exposure', useful for manual access
+        OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+        return
+
+    def set_iso(self, value=0, list_choices=False):
+        '''
+        Change the ISO setting, or optionally only list the available options.
+        Always treturns the (new) currently active setting.
+        Only supported in PHOTO mode.
+        '''
+        if self.mode == 1:
+            print("Camera must be in PHOTO mode to manually set ISO.")
+            return
+        iso = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'iso'))
+        choices = list(iso.get_choices())
+        if list_choices:
+            for i in range(len(choices)):
+                print(i, choices[i])
+            return iso.get_value()
+        OK = gp.check_result(gp.gp_widget_set_value(iso, choices[value]))
+        OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+        return choices[value]
+
+    def set_image_format(self, value=0, list_choices=False):
         '''
         Change the target image format, or optionally only list the available options.
         Always treturns the (new) currently active setting.
         Only supported in PHOTO mode.
         '''
+        if self.mode == 1:
+            print("Camera must be in PHOTO mode to change the target image format")
+            return
         im_format = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'imageformat'))
         choices = list(im_format.get_choices())
         if list_choices:
             for i in range(len(choices)):
                 print(i, choices[i])
             return im_format.get_value()
-        OK = gp.check_result(gp.gp_widget_set_value(im_format, choices[format]))
+        OK = gp.check_result(gp.gp_widget_set_value(im_format, choices[value]))
         OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
-        return choices[format]
+        return choices[value]
     
     def trigger_AF(self):
         '''
@@ -357,9 +419,10 @@ if __name__ == '__main__':
     #cam1.get_file_info(file_path='/store_00020001/DCIM/103_1109/IMG_0426.JPG')
     #cam1.download_file(camera_path='/store_00020001/DCIM/103_1109/IMG_0426.JPG')
     #cam1.record_video()
-    #cam1.manual_focus(step=3)
+    #cam1.manual_focus(value=3)
     #cam1.record_preview_video(t=4, target_file ='./res_first.mp4', resolution_prio=True)
     #config_names = cam1.list_all_config()
+    cam1.set_aperture('AUTO')
     cam1.set_image_format(list_choices=True)
     cam1.set_image_format(0)
 
