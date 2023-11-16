@@ -439,12 +439,49 @@ class EOS(object):
             except:
                 OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
         return
+    
+    def capture_burst(self, t=0.5, save_timeout=5):
+        '''
+        Shoot a quick burst of full-scale images for a duration of t seconds.
+        Should achieve about 8-9fps. Returns a list of file locations on the camera.
+        Only supported in PHOTO mode.
+        '''
 
+        # Set the drive mode to continuous shooting
+        drive_mode = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'drivemode'))
+        drive_mode.set_value(list(drive_mode.get_choices())[1])
+        release = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'eosremoterelease'))
+        OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+
+        # start shooting but activating remote trigger
+        release.set_value('Immediate') # 5 == Immediate
+        OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+        time.sleep(t) # wait for the desired duration
+        # and turn the trigger OFF again
+        release.set_value('Release Full')
+        OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+
+        # after the burst is over, fetch all the files
+        # this allows for faster shooting rather than saving files after each capture
+        files=[]
+        timeout = time.time() + save_timeout # the save timeout stops retrieving of files if no new file has been written for a while
+        while True:
+            event_type, event_data = self.camera.wait_for_event(100)
+            if event_type == gp.GP_EVENT_FILE_ADDED:
+                files.append(event_data.folder +'/'+ event_data.name)
+                timeout = time.time() + save_timeout
+            elif time.time() > timeout:
+                break
+
+        # Finally, set the drive mode back to individual captures
+        drive_mode.set_value(list(drive_mode.get_choices())[0])
+        OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+        return files
 
     ''' VIDEO mode only methods'''
 
 
-    def record_video(self, t=1, download=True, target_path='.'):
+    def record_video(self, t=1, download=True, target_path='.', save_timeout=5):
         '''
         Record a video for a duration of t seconds.
         Resolution and file formats are set in the camera's menu. Storage medium must be inserted.
@@ -460,7 +497,7 @@ class EOS(object):
         rec_button.set_value('None')
         OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
     
-        timeout = time.time() + 5
+        timeout = time.time() + save_timeout
         if download:
             while True:
                 # potential for errors if the new file event is not caught by this wait loop
@@ -479,24 +516,26 @@ if __name__ == '__main__':
     #port = gphoto_util.choose_camera()
     #ports = gphoto_util.detect_EOS_cameras()
     cam1 = EOS(port=None)
-    #cam1.set_AF_location(1,1)
-    #value, choices = cam1.get_config('autofocusdrive')
-    #file_location = cam1.capture_preview(show=False)
-    #cam1.capture_immediate(download=False)
-    #cam1.trigger_AF()
-    #cam1.list_files()
-    #cam1.capture_image(AF=False)
-    #cam1.get_file_info(file_path='/store_00020001/DCIM/103_1109/IMG_0426.JPG')
-    #cam1.download_file(camera_path='/store_00020001/DCIM/103_1109/IMG_0426.JPG')
-    #cam1.record_video()
-    #cam1.manual_focus(value=3)
-    #cam1.record_preview_video(t=4, target_file ='./res_first.mp4', resolution_prio=True)
-    #config_names = cam1.list_all_config()
+    # cam1.set_AF_location(1,1)
+    # value, choices = cam1.get_config('autofocusdrive')
+    # file_location = cam1.capture_preview(show=False)
+    # cam1.capture_immediate(download=False)
+    # cam1.trigger_AF()
+    # cam1.list_files()
+    # cam1.capture_image(AF=False)
+    # cam1.get_file_info(file_path='/store_00020001/DCIM/103_1109/IMG_0426.JPG')
+    # cam1.download_file(camera_path='/store_00020001/DCIM/103_1109/IMG_0426.JPG')
+    # cam1.record_video()
+    # cam1.manual_focus(value=3)
+    # cam1.record_preview_video(t=4, target_file ='./res_first.mp4', resolution_prio=True)
+    # config_names = cam1.list_all_config()
     # cam1.set_shutterspeed('1/65')
     # cam1.set_aperture(20)
-    cam1.sync_date_time()
-    cam1.set_image_format(list_choices=True)
-    cam1.set_image_format(0)
+    # cam1.capture_immediate(download=True)
+    # cam1.capture_burst(0.5)
+    # cam1.sync_date_time()
+    # cam1.set_image_format(list_choices=True)
+    # cam1.set_image_format(0)
 
 
     cam1.capture_image(AF=True)
