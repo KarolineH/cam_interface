@@ -59,6 +59,17 @@ class EOS(object):
         switch = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'eosmovieswitch'))
         value = gp.check_result(gp.gp_widget_get_value(switch))
         return int(value)
+    
+    def sync_date_time(self):
+        '''
+        Sync the camera's date and time with the connected computer's date and time.
+        '''
+        date_time = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'syncdatetimeutc'))
+        date_time.set_value(1)
+        OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+        date_time.set_value(0)
+        OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+        return
 
     def get_config(self, config_name=''):
         '''
@@ -163,6 +174,46 @@ class EOS(object):
         aperture.set_value(str(value))
         OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
         return str(value)
+    
+    def set_shutterspeed(self, value='AUTO', list_choices=False):
+        '''
+        Change the shutter speed, or optionally only list the available options.
+        Always treturns the (new) currently active setting.
+        Input value should be a string of the form '1/50' or '0.5' or '25', or one of the automatic options.
+        Works slightly differently in PHOTO and VIDEO mode, so both are unified in this method.
+        '''
+
+        auto = False
+        if self.mode == 0:
+            # in PHOTO mode
+            choices = ['30', '25', '20', '15', '13', '10.3', '8', '6.3', '5', '4', '3.2', '2.5', '2', '1.6', '1.3', '1', '0.8', '0.6', '0.5', '0.4', '0.3', '1/4', '1/5', '1/6', '1/8', '1/10', '1/13', '1/15', '1/20', '1/25', '1/30', '1/40', '1/50', '1/60', '1/80', '1/100', '1/125', '1/160', '1/200', '1/250', '1/320', '1/400', '1/500', '1/640', '1/800', '1/1000', '1/1250', '1/1600', '1/2000', '1/2500', '1/3200', '1/4000', '1/5000', '1/6400', '1/8000']
+            num_choices = [eval(choice) for choice in choices]
+            auto_string = 'bulb'
+        else:
+            # in VIDEO mode
+            choices = ['1/50', '1/60', '1/75', '1/90', '1/100', '1/120', '1/150', '1/180','1/210', '1/250', '1/300', '1/360',  '1/420',  '1/500',  '1/600',  '1/720',  '1/840',  '1/1000', '1/1200', '1/1400', '1/1700', '1/2000'] # option 13 is missing
+            num_choices = [eval(choice) for choice in choices]
+            auto_string = 'auto'
+
+        if value == 'AUTO':
+            auto = True
+            value = auto_string
+
+        if not auto:
+            # if the exact value specified is not supported, use the closest option
+            if value not in choices:
+                num_value = eval(value)
+                closest = choices[num_choices.index(min(num_choices, key=lambda x: abs(x - num_value)))]
+                print(f'Shutterspeed of {value} not supported, using closest option of {closest}')
+                value = closest
+
+        shutterspeed = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'shutterspeed'))
+        if list_choices:
+            print(choices, f"or '{auto_string}' for automatic mode")
+            return shutterspeed.get_value()
+        shutterspeed.set_value(value)
+        OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+        return value
     
 
     ''' PHOTO mode only methods'''
@@ -441,7 +492,9 @@ if __name__ == '__main__':
     #cam1.manual_focus(value=3)
     #cam1.record_preview_video(t=4, target_file ='./res_first.mp4', resolution_prio=True)
     #config_names = cam1.list_all_config()
-    cam1.set_aperture(20)
+    # cam1.set_shutterspeed('1/65')
+    # cam1.set_aperture(20)
+    cam1.sync_date_time()
     cam1.set_image_format(list_choices=True)
     cam1.set_image_format(0)
 
