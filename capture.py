@@ -215,6 +215,24 @@ class EOS(object):
         OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
         return value
     
+    def set_continuous_AF(self, value='Off'):
+        '''
+        Turn continuous auto focus on (1/'On') or off (0/'Off').
+        Always treturns the (new) currently active setting.
+        Works slightly differently in PHOTO and VIDEO mode, so both are unified in this method.
+        '''
+
+        if self.mode == 0:
+            config = 'continuousaf'
+        else:
+            config = 'movieservoaf'
+        if str(value).isnumeric():
+            value = ['Off', 'On'][int(value)]
+        c_AF = gp.check_result(gp.gp_widget_get_child_by_name(self.config, config))
+        c_AF.set_value(value)
+        OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+        return value
+    
 
     ''' PHOTO mode only methods'''
 
@@ -536,7 +554,6 @@ if __name__ == '__main__':
     # cam1.sync_date_time()
     # cam1.set_image_format(list_choices=True)
     # cam1.set_image_format(0)
-
-
+    cam1.set_continuous_AF(1)
     cam1.capture_image(AF=True)
     print("Camera initalised")
