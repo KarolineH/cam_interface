@@ -109,7 +109,7 @@ class EOS(object):
         cam_file = self.camera.file_get(folder, name, gp.GP_FILE_TYPE_NORMAL)
         target_file = os.path.join(target_path, name)
         cam_file.save(target_file)
-        return
+        return target_path
     
     def manual_focus(self, value=3):
         '''
@@ -251,6 +251,7 @@ class EOS(object):
         '''
         Change the ISO setting, or optionally only list the available options.
         Always treturns the (new) currently active setting.
+        Accepts input values of type int, either as the index of the choice or the value itself.
         Only supported in PHOTO mode.
         '''
         if self.mode == 1:
@@ -258,13 +259,22 @@ class EOS(object):
             return
         iso = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'iso'))
         choices = list(iso.get_choices())
+        num_choices = [eval(choice) for choice in choices if choice.isnumeric()]
         if list_choices:
             for i in range(len(choices)):
                 print(i, choices[i])
             return iso.get_value()
-        OK = gp.check_result(gp.gp_widget_set_value(iso, choices[value]))
+        if int(value) < 100:
+            value = choices[value]
+        else:
+            if value not in num_choices:
+                closest = min(num_choices, key=lambda x: abs(x - value))
+                print(f'ISO of {value} not supported, using closest option of {closest}')
+                value = closest
+            value = str(value)
+        iso.set_value(value)
         OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
-        return choices[value]
+        return value
 
     def set_image_format(self, value=0, list_choices=False):
         '''
@@ -359,6 +369,7 @@ class EOS(object):
                     self.capture_immediate(download, target_path)
         else: 
             self.capture_immediate(download, target_path)
+            return
 
     def capture_immediate(self, download=True, target_path='.'):
         '''
@@ -531,29 +542,6 @@ class EOS(object):
         return
 
 if __name__ == '__main__':
-    #port = gphoto_util.choose_camera()
-    #ports = gphoto_util.detect_EOS_cameras()
+
     cam1 = EOS(port=None)
-    # cam1.set_AF_location(1,1)
-    # value, choices = cam1.get_config('autofocusdrive')
-    # file_location = cam1.capture_preview(show=False)
-    # cam1.capture_immediate(download=False)
-    # cam1.trigger_AF()
-    # cam1.list_files()
-    # cam1.capture_image(AF=False)
-    # cam1.get_file_info(file_path='/store_00020001/DCIM/103_1109/IMG_0426.JPG')
-    # cam1.download_file(camera_path='/store_00020001/DCIM/103_1109/IMG_0426.JPG')
-    # cam1.record_video()
-    # cam1.manual_focus(value=3)
-    # cam1.record_preview_video(t=4, target_file ='./res_first.mp4', resolution_prio=True)
-    # config_names = cam1.list_all_config()
-    # cam1.set_shutterspeed('1/65')
-    # cam1.set_aperture(20)
-    # cam1.capture_immediate(download=True)
-    # cam1.capture_burst(0.5)
-    # cam1.sync_date_time()
-    # cam1.set_image_format(list_choices=True)
-    # cam1.set_image_format(0)
-    cam1.set_continuous_AF(1)
-    cam1.capture_image(AF=True)
     print("Camera initalised")
