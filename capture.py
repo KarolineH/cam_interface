@@ -59,6 +59,17 @@ class EOS(object):
         switch = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'eosmovieswitch'))
         value = gp.check_result(gp.gp_widget_get_value(switch))
         return int(value)
+    
+    def sync_date_time(self):
+        '''
+        Sync the camera's date and time with the connected computer's date and time.
+        '''
+        date_time = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'syncdatetimeutc'))
+        date_time.set_value(1)
+        OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+        date_time.set_value(0)
+        OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+        return
 
     def get_config(self, config_name=''):
         '''
@@ -163,6 +174,64 @@ class EOS(object):
         aperture.set_value(str(value))
         OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
         return str(value)
+    
+    def set_shutterspeed(self, value='AUTO', list_choices=False):
+        '''
+        Change the shutter speed, or optionally only list the available options.
+        Always treturns the (new) currently active setting.
+        Input value should be a string of the form '1/50' or '0.5' or '25', or one of the automatic options.
+        Works slightly differently in PHOTO and VIDEO mode, so both are unified in this method.
+        '''
+
+        auto = False
+        if self.mode == 0:
+            # in PHOTO mode
+            choices = ['30', '25', '20', '15', '13', '10.3', '8', '6.3', '5', '4', '3.2', '2.5', '2', '1.6', '1.3', '1', '0.8', '0.6', '0.5', '0.4', '0.3', '1/4', '1/5', '1/6', '1/8', '1/10', '1/13', '1/15', '1/20', '1/25', '1/30', '1/40', '1/50', '1/60', '1/80', '1/100', '1/125', '1/160', '1/200', '1/250', '1/320', '1/400', '1/500', '1/640', '1/800', '1/1000', '1/1250', '1/1600', '1/2000', '1/2500', '1/3200', '1/4000', '1/5000', '1/6400', '1/8000']
+            num_choices = [eval(choice) for choice in choices]
+            auto_string = 'bulb'
+        else:
+            # in VIDEO mode
+            choices = ['1/50', '1/60', '1/75', '1/90', '1/100', '1/120', '1/150', '1/180','1/210', '1/250', '1/300', '1/360',  '1/420',  '1/500',  '1/600',  '1/720',  '1/840',  '1/1000', '1/1200', '1/1400', '1/1700', '1/2000'] # option 13 is missing
+            num_choices = [eval(choice) for choice in choices]
+            auto_string = 'auto'
+
+        if value == 'AUTO':
+            auto = True
+            value = auto_string
+
+        if not auto:
+            # if the exact value specified is not supported, use the closest option
+            if value not in choices:
+                num_value = eval(value)
+                closest = choices[num_choices.index(min(num_choices, key=lambda x: abs(x - num_value)))]
+                print(f'Shutterspeed of {value} not supported, using closest option of {closest}')
+                value = closest
+
+        shutterspeed = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'shutterspeed'))
+        if list_choices:
+            print(choices, f"or '{auto_string}' for automatic mode")
+            return shutterspeed.get_value()
+        shutterspeed.set_value(value)
+        OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+        return value
+    
+    def set_continuous_AF(self, value='Off'):
+        '''
+        Turn continuous auto focus on (1/'On') or off (0/'Off').
+        Always treturns the (new) currently active setting.
+        Works slightly differently in PHOTO and VIDEO mode, so both are unified in this method.
+        '''
+
+        if self.mode == 0:
+            config = 'continuousaf'
+        else:
+            config = 'movieservoaf'
+        if str(value).isnumeric():
+            value = ['Off', 'On'][int(value)]
+        c_AF = gp.check_result(gp.gp_widget_get_child_by_name(self.config, config))
+        c_AF.set_value(value)
+        OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+        return value
     
 
     ''' PHOTO mode only methods'''
@@ -388,12 +457,49 @@ class EOS(object):
             except:
                 OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
         return
+    
+    def capture_burst(self, t=0.5, save_timeout=5):
+        '''
+        Shoot a quick burst of full-scale images for a duration of t seconds.
+        Should achieve about 8-9fps. Returns a list of file locations on the camera.
+        Only supported in PHOTO mode.
+        '''
 
+        # Set the drive mode to continuous shooting
+        drive_mode = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'drivemode'))
+        drive_mode.set_value(list(drive_mode.get_choices())[1])
+        release = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'eosremoterelease'))
+        OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+
+        # start shooting but activating remote trigger
+        release.set_value('Immediate') # 5 == Immediate
+        OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+        time.sleep(t) # wait for the desired duration
+        # and turn the trigger OFF again
+        release.set_value('Release Full')
+        OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+
+        # after the burst is over, fetch all the files
+        # this allows for faster shooting rather than saving files after each capture
+        files=[]
+        timeout = time.time() + save_timeout # the save timeout stops retrieving of files if no new file has been written for a while
+        while True:
+            event_type, event_data = self.camera.wait_for_event(100)
+            if event_type == gp.GP_EVENT_FILE_ADDED:
+                files.append(event_data.folder +'/'+ event_data.name)
+                timeout = time.time() + save_timeout
+            elif time.time() > timeout:
+                break
+
+        # Finally, set the drive mode back to individual captures
+        drive_mode.set_value(list(drive_mode.get_choices())[0])
+        OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+        return files
 
     ''' VIDEO mode only methods'''
 
 
-    def record_video(self, t=1, download=True, target_path='.'):
+    def record_video(self, t=1, download=True, target_path='.', save_timeout=5):
         '''
         Record a video for a duration of t seconds.
         Resolution and file formats are set in the camera's menu. Storage medium must be inserted.
@@ -409,7 +515,7 @@ class EOS(object):
         rec_button.set_value('None')
         OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
     
-        timeout = time.time() + 5
+        timeout = time.time() + save_timeout
         if download:
             while True:
                 # potential for errors if the new file event is not caught by this wait loop
@@ -428,23 +534,26 @@ if __name__ == '__main__':
     #port = gphoto_util.choose_camera()
     #ports = gphoto_util.detect_EOS_cameras()
     cam1 = EOS(port=None)
-    #cam1.set_AF_location(1,1)
-    #value, choices = cam1.get_config('autofocusdrive')
-    #file_location = cam1.capture_preview(show=False)
-    #cam1.capture_immediate(download=False)
-    #cam1.trigger_AF()
-    #cam1.list_files()
-    #cam1.capture_image(AF=False)
-    #cam1.get_file_info(file_path='/store_00020001/DCIM/103_1109/IMG_0426.JPG')
-    #cam1.download_file(camera_path='/store_00020001/DCIM/103_1109/IMG_0426.JPG')
-    #cam1.record_video()
-    #cam1.manual_focus(value=3)
-    #cam1.record_preview_video(t=4, target_file ='./res_first.mp4', resolution_prio=True)
-    #config_names = cam1.list_all_config()
-    cam1.set_aperture(20)
-    cam1.set_image_format(list_choices=True)
-    cam1.set_image_format(0)
-
-
+    # cam1.set_AF_location(1,1)
+    # value, choices = cam1.get_config('autofocusdrive')
+    # file_location = cam1.capture_preview(show=False)
+    # cam1.capture_immediate(download=False)
+    # cam1.trigger_AF()
+    # cam1.list_files()
+    # cam1.capture_image(AF=False)
+    # cam1.get_file_info(file_path='/store_00020001/DCIM/103_1109/IMG_0426.JPG')
+    # cam1.download_file(camera_path='/store_00020001/DCIM/103_1109/IMG_0426.JPG')
+    # cam1.record_video()
+    # cam1.manual_focus(value=3)
+    # cam1.record_preview_video(t=4, target_file ='./res_first.mp4', resolution_prio=True)
+    # config_names = cam1.list_all_config()
+    # cam1.set_shutterspeed('1/65')
+    # cam1.set_aperture(20)
+    # cam1.capture_immediate(download=True)
+    # cam1.capture_burst(0.5)
+    # cam1.sync_date_time()
+    # cam1.set_image_format(list_choices=True)
+    # cam1.set_image_format(0)
+    cam1.set_continuous_AF(1)
     cam1.capture_image(AF=True)
     print("Camera initalised")
