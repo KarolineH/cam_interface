@@ -117,10 +117,10 @@ class EOS(object):
         To bring the focus point nearer, use [0,1,2] for [small, medium, large] increments.
         To bring the focus point further, use [4,5,6] for [small, medium, large] increments.
         '''
-
         # 0,1,2 == small, medium, large increment --> nearer
         # 3 == none
         # 4,5,6 == small, medium, large increment --> further 
+        value = int(value)
         mf = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'manualfocusdrive'))
         mf.set_value(list(mf.get_choices())[value])
         OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
@@ -152,6 +152,15 @@ class EOS(object):
                 auto = True
                 value = 'implicit auto'
 
+        aperture = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'aperture'))
+        if list_choices:
+            choices.append('AUTO')
+            print(choices)
+            if aperture.get_value() == 'Unknown value 00ff':
+                return 'AUTO', choices
+            else:
+                return aperture.get_value(), choices
+
         if not auto:
             value = float(value)
             # if the exact value specified is not supported, use the closest option
@@ -166,13 +175,10 @@ class EOS(object):
             except:
                 pass
 
-        aperture = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'aperture'))
-        if list_choices:
-            print(choices)
-            return aperture.get_value()
+        choices.append('AUTO')
         aperture.set_value(str(value))
         OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
-        return str(value)
+        return str(value), choices
     
     def set_shutterspeed(self, value='AUTO', list_choices=False):
         '''
