@@ -1,6 +1,5 @@
 import gphoto2 as gp
 import subprocess as sp, logging, os
-import gphoto_util
 from PIL import Image
 from datetime import datetime
 import time
