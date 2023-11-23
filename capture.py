@@ -359,22 +359,26 @@ class EOS(object):
         Only supported in PHOTO mode.
         '''
         if self.mode == 1:
-            print("Camera must be in PHOTO mode to capture static images")
-            return
+            error_msg = "Camera must be in PHOTO mode to capture static images"
+            print(error_msg)
+            return False, error_msg
         if AF:
             try:
-                file_path = self.camera.capture(gp.GP_CAPTURE_IMAGE) # Capture_image always triggers AF and ONLY captures an image when AF was successful, otherwise returns I/O error
+                file_path = self.camera.capture(gp.GP_CAPTURE_IMAGE) # Capture_image always tries to triggers the AF usually captures an image after AF was successful, otherwise returns I/O error
                 if download:
                     camera_file = self.camera.file_get(file_path.folder, file_path.name, gp.GP_FILE_TYPE_NORMAL)
                     camera_file.save(target_path+'/'+file_path.name)
-                    return
+                    return True, 'capture taken with AF and downloaded'
+                return True, 'capture taken with AF and saved to camera'
+                
             except gp.GPhoto2Error as er:
                 if '-110' in er.args[0]:
                     print("I/O error, Auto-focus failed. Taking immediate capture instead.")
-                    self.capture_immediate(download, target_path)
+                    success, msg = self.capture_immediate(download, target_path)
+                    return success, 'Auto-focus failed. Tried immediate capture, ' + msg 
         else: 
-            self.capture_immediate(download, target_path)
-            return
+            success, msg = self.capture_immediate(download, target_path)
+            return success, 'Immediate capture, ' + msg
 
     def capture_immediate(self, download=True, target_path='.'):
         '''
@@ -384,11 +388,16 @@ class EOS(object):
         Only supported in PHOTO mode.
         '''
         if self.mode == 1:
-            print("Camera must be in PHOTO mode to capture static images")
-            return
+            error_msg = "Camera must be in PHOTO mode to capture static images"
+            print(error_msg)
+            return False, error_msg
         release = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'eosremoterelease'))
+        release.set_value('None') # 5 == Immediate
+        self.camera.set_config(self.config)
         release.set_value('Immediate') # 5 == Immediate
-        OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+        self.camera.set_config(self.config)
+
+        #OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
         if download:
             timeout = time.time() + 5
             while True:
@@ -400,15 +409,16 @@ class EOS(object):
                     cam_file.save(target_path+'/'+event_data.name)
                     release.set_value('None')
                     OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
-                    return
+                    return True, 'downloaded'
                 elif time.time() > timeout:
-                    print("Waiting for new file event timed out, please find the file saved on the device.")
+                    error_msg = "Waiting for new file event timed out, please find the file saved on the device."
+                    print(error_msg)
                     release.set_value('None')
                     OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
-                    return
+                    return True, error_msg
         release.set_value('None')
         OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
-        return
+        return True, 'saved to camera'
     
     def record_preview_video(self, t=1, target_file ='./prev_vid.mp4', resolution_prio=False):
         '''
@@ -548,5 +558,6 @@ class EOS(object):
 
 if __name__ == '__main__':
 
-    cam1 = EOS(port=None)
+    cam1 = EOS(port='usb:002,007')
+    cam1.capture_image(download=False, target_path='./', AF=True)
     print("Camera initalised")
