@@ -1,6 +1,5 @@
 import gphoto2 as gp
 import subprocess as sp, logging, os
-from PIL import Image
 from datetime import datetime
 import time
 from subprocess import Popen, PIPE
