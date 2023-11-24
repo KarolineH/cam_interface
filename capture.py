@@ -545,29 +545,33 @@ class EOS(object):
         Only supported in VIDEO mode.
         '''
         if self.mode == 0:
-            print("Camera must be in VIDEO mode to record full-res videos")
-            return
+            error_msg = "Camera must be in VIDEO mode to record full-res videos"
+            print(error_msg)
+            return False, error_msg
+        
+        # recording
         rec_button = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'movierecordtarget'))
         rec_button.set_value('Card')
         OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
         time.sleep(t)
         rec_button.set_value('None')
         OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
-    
+
+        # fetching the file
         timeout = time.time() + save_timeout
         if download:
             while True:
                 # potential for errors if the new file event is not caught by this wait loop
-                # loop times out after 10 seconds
                 event_type, event_data = self.camera.wait_for_event(1000)
                 if event_type == gp.GP_EVENT_FILE_ADDED:
                     cam_file = self.camera.file_get(event_data.folder, event_data.name, gp.GP_FILE_TYPE_NORMAL)
                     cam_file.save(target_path+'/'+event_data.name)
-                    return
+                    return True, 'File downloaded to PC'
                 elif time.time() > timeout:
-                    print("Waiting for new file event timed out, please find the file saved on the device.")
-                    return
-        return
+                    error_msg = "Warning: Waiting for new file event timed out, capture may have failed."
+                    print(error_msg)
+                    return True, error_msg
+        return True, 'saved to camera'
 
 if __name__ == '__main__':
 
