@@ -122,12 +122,22 @@ class EOS(object):
         # 3 == none
         # 4,5,6 == small, medium, large increment --> further 
         value = int(value)
+        if 0 <= value <= 2:
+            msg = 'Manually focussing nearer'
+        elif 4 <= value <= 6:
+            msg = 'Manually focussing farther'
+        elif value == 3:
+            msg = 'Manual focus drive set to neutral'
+        else:
+            msg = f'Manual focus drive failed, value {value} out of range'
+            return msg
+    
         mf = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'manualfocusdrive'))
         mf.set_value(list(mf.get_choices())[value])
         OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
         mf.set_value(list(mf.get_choices())[3]) # set back to 'None'
         OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
-        return
+        return msg
     
     def set_aperture(self, value='AUTO', list_choices=False):
         '''
