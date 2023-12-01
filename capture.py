@@ -226,7 +226,10 @@ class EOS(object):
         if not auto:
             # if the exact value specified is not supported, use the closest option
             if value not in choices:
-                num_value = eval(value)
+                if type(value) == int or type(value) == float:
+                    num_value = value
+                else:
+                    num_value = eval(value)
                 closest = choices[num_choices.index(min(num_choices, key=lambda x: abs(x - num_value)))]
                 msg = f'Shutterspeed of {value} not supported, using closest option of {closest}'
                 print(msg)
