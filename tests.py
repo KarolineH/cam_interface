@@ -8,8 +8,8 @@ cam1 = EOS()
 tests = 25
 
 # Test 1: Get aperture value
-# 01.12.2023 at Zinc, PHOTO mode
-# avg over 25 tests: 0.0000196s
+# 01.12.2023 at Zinc, PHOTO mode: avg over 25 tests: 0.0000196s
+# 02.12.2023 at bo, PHOTO mode: avg over 25 tests: 0.00002721s
 results = []
 for i in range(tests):
     start = time.time()
@@ -17,10 +17,11 @@ for i in range(tests):
     end = time.time()
     results.append(end-start)
 avg_latency = np.mean(np.asarray(results))
+print("Average latency: ", avg_latency)
 
 # Test 2: Set aperture
-# 01.12.2023 at Zinc, PHOTO mode
-# avg over 25 tests: 0.0043
+# 01.12.2023 at Zinc, PHOTO mode: avg over 25 tests: 0.0043
+# 02.12.2023 at bo, PHOTO mode: avg over 25 tests: 0.00119
 vals = [2.8, 32] # smallest and largest aperture values to flick between
 results = []
 for i in range(tests):
@@ -34,8 +35,8 @@ print("Average latency: ", avg_latency)
 
 
 # Test 3: Get shutter speed value
-# 01.12.2023 at Zinc, PHOTO mode
-# avg over 25 tests: 0.00130
+# 01.12.2023 at Zinc, PHOTO mode: avg over 25 tests: 0.00130
+# 02.12.2023 at bo, PHOTO mode: avg over 25 tests: 0.0003124
 results = []
 for i in range(tests):
     start = time.time()
@@ -47,8 +48,8 @@ print("Average latency: ", avg_latency)
 
 
 # Test 4: Set shutter speed
-# 01.12.2023 at Zinc, PHOTO mode
-# avg over 25 tests: 0.00554
+# 01.12.2023 at Zinc, PHOTO mode: avg over 25 tests: 0.00554
+# 02.12.2023 at bo, PHOTO mode: avg over 25 tests: 0.004445
 vals = [30, 1/8000] # smallest and largest shutter speed values to flick between
 results = []
 for i in range(tests):
@@ -59,3 +60,4 @@ for i in range(tests):
     results.append(end-start)
 avg_latency = np.mean(np.asarray(results))
 print("Average latency: ", avg_latency)
+print('done')

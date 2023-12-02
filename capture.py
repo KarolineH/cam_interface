@@ -186,7 +186,11 @@ class EOS(object):
 
         choices.append('AUTO')
         aperture.set_value(str(value))
-        OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+        try:
+            OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+            # this catches an "I/O busy" error that sometimes occurs
+        except:
+            OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
         return str(value), choices, msg
     
     def set_shutterspeed(self, value='AUTO', list_choices=False):
