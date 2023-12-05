@@ -262,8 +262,8 @@ class EOS(object):
             msgs += msg
         else:
             current_iso = self.get_iso()
-
-        return current_aperture, current_iso, current_shutterspeed, current_cAF, msgs
+        msgs += '... Capture parameters set'
+        return [current_aperture, current_iso, current_shutterspeed, current_cAF], msgs
     
     def set_aperture(self, value='AUTO'):
         '''
