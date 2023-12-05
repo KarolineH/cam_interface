@@ -201,7 +201,7 @@ class EOS(object):
         OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
         return msg
     
-    def get_capture_params(self):
+    def get_capture_parameters(self):
         '''Get the current values for aperture, iso, shutter speed, and continuous auto focus.'''
         aperture = self.get_aperture()
         shutterspeed = self.get_shutterspeed()
@@ -239,21 +239,29 @@ class EOS(object):
         current = 'AUTO' if iso.get_value() == 'Auto' else iso.get_value()
         return iso.get_value()
     
-    def set_capture_params(self, aperture=None, iso=None, shutterspeed=None, c_AF=None):
+    def set_capture_parameters(self, aperture=None, iso=None, shutterspeed=None, c_AF=None):
         '''Set the aperture, iso, shutter speed, and continuous auto focus.'''
         msgs = ''
         if aperture is not None:
             current_aperture, msg = self.set_aperture(aperture)
             msgs += msg
+        else:
+            current_aperture = self.get_aperture()
         if shutterspeed is not None:
             current_shutterspeed, msg = self.set_shutterspeed(shutterspeed)
             msgs += msg
+        else:
+            current_shutterspeed = self.get_shutterspeed()
         if c_AF is not None:
             current_cAF, msg = self.set_continuous_AF(c_AF)
             msgs += msg
+        else:
+            current_cAF = self.get_continuous_AF()
         if iso is not None and self.mode == 0:
             current_iso, msg = self.set_iso(iso)
             msgs += msg
+        else:
+            current_iso = self.get_iso()
 
         return current_aperture, current_iso, current_shutterspeed, current_cAF, msgs
     
