@@ -1,12 +1,11 @@
 import gphoto2 as gp
 import subprocess as sp, logging, os
-from datetime import datetime
 import time
 from subprocess import Popen, PIPE
 
 class EOS(object):
     """
-    Interface a Canon EOS R5 C with gphoto2 via USB.
+    Interface a Canon EOS R5 C using gphoto2 via USB port.
     """
 
     def __init__(self, port=None):
@@ -21,7 +20,7 @@ class EOS(object):
             exit()
         
         self.camera = gp.Camera()
-        if port is not None: # If a port is specified, initialise the correct device
+        if port is not None: # If a port is specified, initialise the correct device, otherwise just use the first detected compatible device
             port_info_list = gp.PortInfoList()
             port_info_list.load()
             idx = port_info_list.lookup_path(port)
@@ -32,12 +31,22 @@ class EOS(object):
             abilities_list.load()
             idx = abilities_list.lookup_model(name)
             self.camera.set_abilities(abilities_list[idx])
+
+        # Initialise camera
         self.camera.init()
         self.config = self.camera.get_config()
         self.mode = self.get_camera_mode() # detects the manual switch state: 0 == PHOTO, 1 == VIDEO
         if self.mode == 0:
-            self.set_exposure_manual()
+            self.set_exposure_manual() # set the camera's auto-exposure mode to manual, so that shutter, aperture, and iso can be set remotely
 
+        # set the main capture configuration options for both PHOTO and VIDEO mode
+        if self.mode == 0:
+            self.aperture_choices = [2.8, 3.2, 3.5, 4, 4.5, 5, 5.6, 6.3, 7.1, 8, 9, 10, 11, 13, 14, 16, 18, 20, 22, 25, 29, 32]
+            self.shutter_choices = ['30', '25', '20', '15', '13', '10.3', '8', '6.3', '5', '4', '3.2', '2.5', '2', '1.6', '1.3', '1', '0.8', '0.6', '0.5', '0.4', '0.3', '1/4', '1/5', '1/6', '1/8', '1/10', '1/13', '1/15', '1/20', '1/25', '1/30', '1/40', '1/50', '1/60', '1/80', '1/100', '1/125', '1/160', '1/200', '1/250', '1/320', '1/400', '1/500', '1/640', '1/800', '1/1000', '1/1250', '1/1600', '1/2000', '1/2500', '1/3200', '1/4000', '1/5000', '1/6400', '1/8000']
+            self.iso_choices = [100, 125, 160, 200, 250, 320, 400, 500, 640, 800, 1000, 1250, 1600, 2000, 2500, 3200, 4000, 5000, 6400, 8000, 10000, 12800, 16000, 20000, 25600, 32000, 40000, 51200]
+        else:
+            self.aperture_choices = [2.8, 3.2, 3.5, 4, 4.5, 5, 5.6, 6.3, 7.1, 8, 9, 10, 11, 14, 16, 18, 20, 22, 25, 29, 32] # option 13 is missing
+            self.shutter_choices = ['1/50', '1/60', '1/75', '1/90', '1/100', '1/120', '1/150', '1/180','1/210', '1/250', '1/300', '1/360',  '1/420',  '1/500',  '1/600',  '1/720',  '1/840',  '1/1000', '1/1200', '1/1400', '1/1700', '1/2000'] # option 13 is missing
 
 
     ''' Universal Methods, work in both PHOTO and VIDEO mode '''
@@ -45,14 +54,15 @@ class EOS(object):
 
     def list_all_config(self):
         '''
-        List all available configuration options communicated via USB and supported by gphoto2
+        List all available configuration options communicated via USB and supported by gphoto2, including those not (yet) implemented in this class.
+        Output: List of strings
         '''
         return [el[0] for el in gp.check_result(gp.gp_camera_list_config(self.camera))]
     
     def get_camera_mode(self):
         '''
         Detect whether the physical switch on the camera is set to photo or video mode
-        0 == PHOTO, 1 == VIDEO
+        Output: int 0 == PHOTO, 1 == VIDEO
         '''
         switch = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'eosmovieswitch'))
         value = gp.check_result(gp.gp_widget_get_value(switch))
@@ -69,53 +79,106 @@ class EOS(object):
         OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
         return
 
-    def get_config(self, config_name=''):
+    def get_config(self, config_name=None):
         '''
         Get the current value and all choices of a named configuration
+        Output: tuple (string: current value, list of strings: choices)
         '''
-        if config_name in self.list_all_config():
-            conf = gp.check_result(gp.gp_widget_get_child_by_name(self.config, config_name))
-            value = gp.check_result(gp.gp_widget_get_value(conf))
-            try:
-                choices = list(conf.get_choices())
-            except:
-                choices = None
-                print(f"Config {config_name} provides no choices")
-            return value, choices
+        if type(config_name)==str:
+            config_name = config_name.lower()
+            if config_name in self.list_all_config():
+                conf = gp.check_result(gp.gp_widget_get_child_by_name(self.config, config_name))
+                value = gp.check_result(gp.gp_widget_get_value(conf))
+                try:
+                    choices = list(conf.get_choices())
+                except:
+                    choices = None
+                    print(f"Config {config_name} provides no choices")
+                return value, choices
+            else:
+                print(f"Config {config_name} not found")
+                return None
         else:
-            print(f"Config {config_name} not found")
+            print(f"Config name must be a string")
             return None
-    
+        
     def get_file_info(self, file_path):
-        '''Retrieve information about a specific file saved on the device.'''
-        folder, name = os.path.split(file_path)
-        info = self.camera.file_get_info(folder, name)
-        #size = info.file.size
-        #file_type = info.file.type
-        #timestamp = datetime.fromtimestamp(info.file.mtime).isoformat(' ')
-        return info
+        '''
+        Retrieve information about a specific file saved on the camera storage medium.
+        Output: info object with variables info.file.size, info.file.type, info.file.mtime and more
+        '''
+        if type(file_path)==str:
+            if len(file_path) > 0 and file_path[0] == '/' and file_path[-1] != '/':
+                folder, name = os.path.split(file_path)
+                try:
+                    info = self.camera.file_get_info(folder, name)
+                        # usage examples:
+                        #size = info.file.size
+                        #file_type = info.file.type
+                        #timestamp = datetime.fromtimestamp(info.file.mtime).isoformat(' ')
+                    return info
+                
+                except Exception as err:
+                    if '-108' in str(err):
+                        print(f"File {file_path} not found")
+                    else:
+                        print('Unhandled gphoto2 error: ' + err)
+                    return None
+
+            else:
+                print(f"Please provide the absolute file path. Path {file_path} must be a string starting with '/' and ending with the file name")
+                return None
 
     def list_files(self, path='/store_00020001/DCIM'):
-        '''List all media files saved on the device (default) or at a specific location on the device.'''
-        folders = [os.path.join(path, folder[0]) for folder in self.camera.folder_list_folders(path)]
-        files = [os.path.join(folder,file_name[0]) for folder in folders for file_name in self.camera.folder_list_files(folder)]
+        '''
+        List all media files saved in the main media directory of the camera storage medium (default) or at another specified directory.
+        Output: List of file paths (strings) in the given directory's immediate subdirectories. 
+        '''
+        if type(path)==str:
+            if len(path) > 0 and path[0] == '/':
+                dirs = [os.path.join(path, folder[0]) for folder in self.camera.folder_list_folders(path)]
+                files = [os.path.join(folder,file_name[0]) for folder in dirs for file_name in self.camera.folder_list_files(folder)]
+            else:
+                print(f"Please provide the absolute path. Path {path} must be a string starting with '/'")
+                return None
+        else:
+            print(f"Path must be a string")
+            return None
         return files
     
     def download_file(self, camera_path, target_file=None):
-        '''Download a specific file saved on the device to the target file path on the PC.'''
-        folder, name = os.path.split(camera_path)
-        cam_file = self.camera.file_get(folder, name, gp.GP_FILE_TYPE_NORMAL)
-        if target_file is None:
-            target_file = os.path.join('./', name)
-        cam_file.save(target_file)
-        return target_file
+        '''Download a specific file from the camera storage medium to the target file path on the PC.'''
+
+        if type(camera_path)==str:
+            if len(camera_path) > 0 and camera_path[0] == '/' and camera_path[-1] != '/':
+                folder, name = os.path.split(camera_path)
+                try:
+                    cam_file = self.camera.file_get(folder, name, gp.GP_FILE_TYPE_NORMAL)
+                except Exception as err:
+                    if '-108' in str(err):
+                        print(f"File {camera_path} not found")
+                    else:
+                        print('Unhandled gphoto2 error: ' + err)
+                    return None
+                if target_file is None:
+                    target_file = os.path.join('./', name)
+                cam_file.save(target_file)
+                return target_file
+            else:
+                print(f"Please provide the absolute file path. Path {camera_path} must be a string starting with '/' and ending with the file name")
+                return None
+        else:
+            print(f"Camera path must be a string")
+            return None
     
     def manual_focus(self, value=3):
         '''
-        Manually drive the focus nearer or further in three different increment sizes.
+        Manually drive the lens focus nearer or further in increments of three different sizes.
         This function will have to be called repeatedly to achieve a specific focus distance.
         To bring the focus point nearer, use [0,1,2] for [small, medium, large] increments.
         To bring the focus point further, use [4,5,6] for [small, medium, large] increments.
+        Input: int 0-6
+        Output: string describing the action taken
         '''
         # 0,1,2 == small, medium, large increment --> nearer
         # 3 == none
@@ -138,125 +201,163 @@ class EOS(object):
         OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
         return msg
     
-    def set_aperture(self, value='AUTO', list_choices=False):
-        '''
-        Change the aperture (f-number), or optionally only list the available options.
-        Always treturns the (new) currently active setting.
-        Input value should be of type int, float, or string 'AUTO'
-        Works slightly differently in PHOTO and VIDEO mode, so both are unified in this method.
-
-        WARNING: !! In VIDEO mode, it is unclear if the AUTO setting works. Might have to set 'Iris Mode' to 'Automatic' in the camera menu if you need auto aperture. !!
-        '''
-
-        auto = False
-        if self.mode == 0:
-            # in PHOTO mode
-            choices = [2.8, 3.2, 3.5, 4, 4.5, 5, 5.6, 6.3, 7.1, 8, 9, 10, 11, 13, 14, 16, 18, 20, 22, 25, 29, 32]
-            auto_string = 'Unknown value 00ff'
-        else:
-            # in VIDEO mode
-            choices = [2.8, 3.2, 3.5, 4, 4.5, 5, 5.6, 6.3, 7.1, 8, 9, 10, 11, 14, 16, 18, 20, 22, 25, 29, 32] # option 13 is missing
-            auto_string = 'implicit auto'
-
-        if value == 'AUTO':
-            auto = True
-            value = auto_string
-
-        msg = ''
+    def get_capture_params(self):
+        '''Get the current values for aperture, iso, shutter speed, and continuous auto focus.'''
+        aperture = self.get_aperture()
+        shutterspeed = self.get_shutterspeed()
+        c_AF = self.get_continuous_AF()
+        iso = self.get_iso()
+        return aperture, iso, shutterspeed, c_AF
+    
+    def get_aperture(self):
+        '''Get the current aperture (f-number) setting.'''
         aperture = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'aperture'))
-        if list_choices:
-            choices.append('AUTO')
-            print(choices)
-            if aperture.get_value() == auto_string:
-                return 'AUTO', choices, msg
-            else:
-                return aperture.get_value(), choices, msg
+        current = 'AUTO' if aperture.get_value() == 'Unknown value 00ff' or aperture.get_value() == 'implicit auto' else aperture.get_value()
+        return current
+    
+    def get_shutterspeed(self):
+        '''Get the current shutter speed setting.'''
+        shutterspeed = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'shutterspeed'))
+        current = 'AUTO' if shutterspeed.get_value() == 'bulb' or shutterspeed.get_value() == 'auto' else shutterspeed.get_value()
+        return current
+    
+    def get_continuous_AF(self):
+        '''Get the current continuous auto focus setting.'''
+        if self.mode == 0:
+            config = 'continuousaf'
+        else:
+            config = 'movieservoaf'
+        c_AF = gp.check_result(gp.gp_widget_get_child_by_name(self.config, config))
+        return c_AF.get_value()
+    
+    def get_iso(self):
+        '''Get the current ISO setting.'''
+        if self.mode == 1:
+            #TODO: Double check if there is no way to get this value in VIDEO mode
+            return None
+        iso = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'iso'))
+        current = 'AUTO' if iso.get_value() == 'Auto' else iso.get_value()
+        return iso.get_value()
+    
+    def set_capture_params(self, aperture=None, iso=None, shutterspeed=None, c_AF=None):
+        '''Set the aperture, iso, shutter speed, and continuous auto focus.'''
+        msgs = ''
+        if aperture is not None:
+            current_aperture, msg = self.set_aperture(aperture)
+            msgs += msg
+        if shutterspeed is not None:
+            current_shutterspeed, msg = self.set_shutterspeed(shutterspeed)
+            msgs += msg
+        if c_AF is not None:
+            current_cAF, msg = self.set_continuous_AF(c_AF)
+            msgs += msg
+        if iso is not None and self.mode == 0:
+            current_iso, msg = self.set_iso(iso)
+            msgs += msg
 
-        if not auto:
-            value = float(value)
+        return current_aperture, current_iso, current_shutterspeed, current_cAF, msgs
+    
+    def set_aperture(self, value='AUTO'):
+        '''
+        Change the aperture (f-number). Always returns the (new) currently active setting.
+        Works slightly differently in PHOTO and VIDEO mode, so both are unified in this method.
+        Input: int, float, numeric string, or the string 'AUTO'
+        Output: the current setting (string), a potential error message (string)
+
+        WARNING: !! In VIDEO mode, AUTO setting is still untested. Might have to set 'Iris Mode' to 'Automatic' in the camera menu if you need auto aperture. !!
+        '''
+
+        aperture = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'aperture'))
+        msg = ''
+        if value == 'AUTO':
+            if self.mode == 0:
+                value = 'Unknown value 00ff' # in PHOTO mode
+            else:
+                value = 'implicit auto' # in VIDEO mode
+        else:
+            try:
+                value = float(value)
+            except ValueError:
+                msg = f"Value {value} not supported. Please use string 'AUTO' or a number (int/float/numeric string)."
+                print(msg)
+                print('Supported numeric values: ', self.aperture_choices)
+                current = 'AUTO' if aperture.get_value() == 'Unknown value 00ff' else aperture.get_value()
+                return current, msg
+
             # if the exact value specified is not supported, use the closest option
-            if value not in choices:
-                closest = min(choices, key=lambda x: abs(x - value))
+            if value not in self.aperture_choices:
+                closest = min(self.aperture_choices, key=lambda x: abs(x - value))
                 msg = f'Aperture of {value} not supported, using closest option of {closest}'
                 print(msg)
                 value = closest
-            # gphoto2 only accepts strings formated as proper floats or integers, no ints with trailing zeros
+            # gphoto2 only accepts strings formated as proper decimal numbers or integers without trailing zeros
             if value == int(value):
                 value = int(value)
 
-        choices.append('AUTO')
         aperture.set_value(str(value))
         try:
             OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
             # this catches an "I/O busy" error that sometimes occurs
         except:
             OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
-        return str(value), choices, msg
+        current = 'AUTO' if aperture.get_value() == 'Unknown value 00ff' else aperture.get_value()
+        return current, msg
     
-    def set_shutterspeed(self, value='AUTO', list_choices=False):
+    def set_shutterspeed(self, value='AUTO'):
         '''
-        Change the shutter speed, or optionally only list the available options.
-        Always treturns the (new) currently active setting.
-        Input value should be a string of the form '1/50' or '0.5' or '25', or one of the automatic options.
+        Change the shutter speed. Always treturns the (new) currently active setting.
         Works slightly differently in PHOTO and VIDEO mode, so both are unified in this method.
+        Input: Numeric string of the form '1/50' or '0.5' or '25', or int/float, or the string 'AUTO'.
+        Ooutput: the current setting (string), a potential error message (string)
         '''
 
-        auto = False
-        if self.mode == 0:
-            # in PHOTO mode
-            choices = ['30', '25', '20', '15', '13', '10.3', '8', '6.3', '5', '4', '3.2', '2.5', '2', '1.6', '1.3', '1', '0.8', '0.6', '0.5', '0.4', '0.3', '1/4', '1/5', '1/6', '1/8', '1/10', '1/13', '1/15', '1/20', '1/25', '1/30', '1/40', '1/50', '1/60', '1/80', '1/100', '1/125', '1/160', '1/200', '1/250', '1/320', '1/400', '1/500', '1/640', '1/800', '1/1000', '1/1250', '1/1600', '1/2000', '1/2500', '1/3200', '1/4000', '1/5000', '1/6400', '1/8000']
-            num_choices = [eval(choice) for choice in choices]
-            auto_string = 'bulb'
-        else:
-            # in VIDEO mode
-            choices = ['1/50', '1/60', '1/75', '1/90', '1/100', '1/120', '1/150', '1/180','1/210', '1/250', '1/300', '1/360',  '1/420',  '1/500',  '1/600',  '1/720',  '1/840',  '1/1000', '1/1200', '1/1400', '1/1700', '1/2000'] # option 13 is missing
-            num_choices = [eval(choice) for choice in choices]
-            auto_string = 'auto'
-
-        if value == 'AUTO':
-            auto = True
-            value = auto_string
-        
-        msg = ''
         shutterspeed = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'shutterspeed'))
-        if list_choices:
-            choices.append('AUTO')
-            print(choices)
-            if shutterspeed.get_value() == auto_string:
-                return 'AUTO', choices, msg
+        msg = ''
+        if value == 'AUTO':
+            if self.mode == 0:
+                value = 'bulb'
             else:
-                return shutterspeed.get_value(), choices, msg
-
-        if not auto:
-            # if the exact value specified is not supported, use the closest option
-            if value not in choices:
+                value = 'auto'
+        else:
+            if value not in self.shutter_choices:
+                num_choices = [eval(choice) for choice in self.shutter_choices] # convert all string options to numeric values                
                 if type(value) == int or type(value) == float:
                     num_value = value
                 else:
-                    num_value = eval(value)
-                closest = choices[num_choices.index(min(num_choices, key=lambda x: abs(x - num_value)))]
+                    try:
+                        num_value = eval(value)
+                    except NameError:
+                        msg = f"Value {value} not supported. Please use string 'AUTO' or a number (int/float/numeric string)."
+                        print(msg)
+                        print('Supported numeric values: ', self.shutter_choices)
+                        current = 'AUTO' if shutterspeed.get_value() == 'bulb' else shutterspeed.get_value()
+                        return current, msg
+
+                closest = self.shutter_choices[num_choices.index(min(num_choices, key=lambda x: abs(x - num_value)))]
                 msg = f'Shutterspeed of {value} not supported, using closest option of {closest}'
                 print(msg)
                 value = closest
-
-        choices.append('AUTO')
+        
         shutterspeed.set_value(value)
         OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
-        return value, choices, msg
+        current = 'AUTO' if shutterspeed.get_value() == 'bulb' else shutterspeed.get_value()
+        return current, msg
     
     def set_continuous_AF(self, value='Off'):
         '''
         Turn continuous auto focus on (1/'On') or off (0/'Off').
         Always treturns the (new) currently active setting.
         Works slightly differently in PHOTO and VIDEO mode, so both are unified in this method.
+        Input: string 'On' or 'Off', or int 1 or 0, or bool True or False
+        Output: the current setting (string 'On' or 'Off'), a potential error message
         '''
         if self.mode == 0:
             config = 'continuousaf'
         else:
-            config = 'movieservoaf'
+            config = 'movieservoaf' # because the config is named differently in VIDEO mode
 
         c_AF = gp.check_result(gp.gp_widget_get_child_by_name(self.config, config))
-        value_dict = {0:'Off',1:'On', '0':'Off', '1':'On', 'False':'Off','True':'On','off':'Off','on':'On', 'Off':'Off', 'On':'On'}
+        value_dict = {0:'Off',1:'On', '0':'Off', '1':'On', 'False':'Off','True':'On','off':'Off','on':'On', 'Off':'Off', 'On':'On'} # gphoto2 only accepts the strings 'Off' and 'On' but this seems too restrictive
         if value not in value_dict:
             error_msg = f"Value {value} not supported. Please use 'Off' or 'On'."
             print(error_msg)
@@ -271,58 +372,65 @@ class EOS(object):
 
     ''' PHOTO mode only methods'''
 
-
     def set_exposure_manual(self):
         '''
         Set the camera's auto-exposure mode to manual, so that shutter, aperture, and iso can be set remotely.
         Only supported in PHOTO mode.
         '''
-        exp_mode = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'autoexposuremodedial'))
+        try:
+            exp_mode = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'autoexposuremodedial'))
+        except Exception as err:
+            print(err)
+            return
         exp_mode.set_value('Fv') # 'Fv' == Canon's 'Flexible-Priority Auto Exposure', useful for manual access
         OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
         return
 
-    def set_iso(self, value='AUTO', list_choices=False):
+    def set_iso(self, value='AUTO'):
         '''
-        Change the ISO setting, or optionally only list the available options.
-        Always treturns the (new) currently active setting.
-        Accepts input values of type int, either as the index of the choice or the value itself.
+        Change the ISO setting. Always returns the (new) currently active setting.
         Only supported in PHOTO mode.
+        Input: int, numeric string, or string 'AUTO'
+        Output: current value, potential error message
         '''
         msg = ''
         if self.mode == 1:
             msg = "Camera must be in PHOTO mode to manually set ISO."
             print(msg)
-            return None, None, msg
+            return None, msg
         
         iso = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'iso'))
-        choices = list(iso.get_choices())
-        num_choices = [eval(choice) for choice in choices if choice.isnumeric()]
 
-        if list_choices:
-            num_choices.append('AUTO')
-            return iso.get_value(), num_choices, msg
-        
         if value == 'AUTO':
             iso.set_value('Auto')
         else:
-            value = int(value)
-            if value not in num_choices:
-                closest = min(num_choices, key=lambda x: abs(x - value))
+            if type(value) == int or type(value) == float:
+                value = round(value)
+            elif type(value) == str:
+                try:
+                    value = round(eval(value))
+                except NameError:
+                    msg = f"Value {value} not supported. Please use string 'AUTO' or a number (int/float/numeric string)."
+                    print(msg)
+                    print('Supported numeric values: ', self.iso_choices)
+                    return iso.get_value(), msg
+
+            if value not in self.iso_choices:
+                closest = min(self.iso_choices, key=lambda x: abs(x - value))
                 msg = f'ISO of {value} not supported, using closest option of {closest}'
                 print(msg)
                 value = closest
             value = str(value)
             iso.set_value(value)
         OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
-        num_choices.append('AUTO')
-        return value, num_choices, msg
+        return value, msg
 
     def set_image_format(self, value=0, list_choices=False):
         '''
         Change the target image format, or optionally only list the available options.
         Always treturns the (new) currently active setting.
         Only supported in PHOTO mode.
+        Input: value as int (choice index) or string (choice name)
         '''
         msg = ''
         if self.mode == 1:
@@ -355,6 +463,7 @@ class EOS(object):
         This function might need to be called repeatedly to adjust focus.
         (Equivalent to the bash command --set-config autofocusdrive=1)
         Only supported in PHOTO mode.
+        Output: string describing the action taken
         '''
         if self.mode == 1:
             msg = "Camera must be in PHOTO mode to manually trigger auto focus"
@@ -371,13 +480,16 @@ class EOS(object):
         '''
         Set the auto focus point to a specific pixel location.
         (Equivalent to the bash command --set-config eoszoomposition=x,y)
-        x and y are int, supported range is the image resolution, normally (1,1) to (8192,5464)
         Only supported in PHOTO mode.
+        Input: x and y are int, supported range is the image resolution, normally (1,1) to (8192,5464)
         '''
         msg = ''
         if self.mode == 1:
             msg = "Camera must be in PHOTO mode to manually set auto focus location"
             print(msg)
+            return None, msg
+        if type(x) != int or type(y) != int:
+            msg = f"AF point {x},{y} not supported, please input values as integers."
             return None, msg
         
         AF_point = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'eoszoomposition'))
@@ -392,7 +504,6 @@ class EOS(object):
     def capture_preview(self, target_file='./preview.jpg'):
         '''
         Capture a preview image (i.e. viewfinder frame, with the mirror up) and save it to the target file.
-        Optionally display the image.
         The taken image is NOT saved on the device, only on the computer.
         Only supported in PHOTO mode.
         '''
@@ -407,7 +518,7 @@ class EOS(object):
 
     def capture_immediate(self, download=True, target_path='.'):
         '''
-        Taken an immeditate capture, without triggering the auto-focus first.
+        Taken an immeditate capture, triggering the shutter but without triggering the auto-focus first.
         Optionally download the image to the target path.
         The file will also be saved to the device and the file name will follow the camera's set naming convention.
         Only supported in PHOTO mode.
@@ -424,7 +535,7 @@ class EOS(object):
         if download:
             timeout = time.time() + 5
             while True:
-                # potential for errors if the new file event is not caught by this wait loop
+                # potentially need to catch exceptions here in case the new file event is not caught by this wait loop
                 # loop times out after 10 seconds
                 event_type, event_data = self.camera.wait_for_event(1000)
                 if event_type == gp.GP_EVENT_FILE_ADDED:
@@ -450,13 +561,14 @@ class EOS(object):
         The file will not be saved to the device.
         Note that this function will overwrite existing files in the specified location!
         Only supported in PHOTO mode.
+        Inputs: t=duration in seconds (int or float), target_file=string with file path, resolution_prio=boolean
         '''
         if self.mode == 1:
             error_msg = "Camera must be in PHOTO mode to capture preview videos"
             print(error_msg)
             return False, error_msg
         
-        if os.path.exists(target_file): # overwrite existing file to prevent ffmpeg error
+        if os.path.exists(target_file): # always overwrite existing file to prevent ffmpeg error
             os.remove(target_file)
 
         # if a higher resolution is the priority, record in 'eosmoviemode' at 1024x576 and ~25 fps
@@ -514,6 +626,7 @@ class EOS(object):
         Shoot a quick burst of full-scale images for a duration of t seconds.
         Should achieve about 8-9fps. Returns a list of file locations on the camera.
         Only supported in PHOTO mode.
+        Input: t=duration in seconds (int or float)
         '''
         if self.mode == 1:
             error_msg = "Camera must be in PHOTO mode to capture burst"
@@ -551,14 +664,15 @@ class EOS(object):
         OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
         return True, files, 'saved to camera'
 
-    ''' VIDEO mode only methods'''
 
+    ''' VIDEO mode only methods'''
 
     def record_video(self, t=1, download=True, target_path='.', save_timeout=5):
         '''
         Record a video for a duration of t seconds.
         Resolution and file formats are set in the camera's menu. Storage medium must be inserted.
         Only supported in VIDEO mode.
+        Inputs: t=duration in seconds (int or float), download=boolean, target_path=string
         '''
         if self.mode == 0:
             error_msg = "Camera must be in VIDEO mode to record full-res videos"
@@ -591,7 +705,8 @@ class EOS(object):
 
 if __name__ == '__main__':
 
-    cam1 = EOS(port='usb:002,016')
+    cam1 = EOS()
+    cam1.set_aperture('AUTO')
     cam1.set_continuous_AF(value='On')
     #cam1.set_iso(value=120,list_choices=True)
     #cam1.capture_image(download=False, target_path='./', AF=True)
