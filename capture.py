@@ -376,7 +376,35 @@ class EOS(object):
         c_AF.set_value(value)
         OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
         return value, ''
-    
+
+    def reset_after_abort(self):
+        if self.mode == 0: # this refers to the mode at initialisation of this camera, not the current mode
+            # The current mode might have been changed by the user, but we want to reset to the initial mode
+            mode = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'eosmoviemode'))
+            mode.set_value(0)
+
+            release = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'eosremoterelease')) 
+            release.set_value('None')
+
+            drive_mode = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'drivemode'))
+            drive_mode.set_value(list(drive_mode.get_choices())[0])
+            
+            try:
+                OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+            except:
+                OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+
+        else:
+
+            rec_button = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'movierecordtarget'))
+            rec_button.set_value('None')
+            
+            try:
+                OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+            except:
+                OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+
+        return 'Reset completed'
 
     ''' PHOTO mode only methods'''
 
@@ -714,6 +742,7 @@ class EOS(object):
 if __name__ == '__main__':
 
     cam1 = EOS()
+    cam1.reset_after_abort()
     cam1.set_aperture('AUTO')
     cam1.set_continuous_AF(value='On')
     #cam1.set_iso(value=120,list_choices=True)
