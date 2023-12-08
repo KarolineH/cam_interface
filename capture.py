@@ -74,7 +74,10 @@ class EOS(object):
         '''
         date_time = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'syncdatetimeutc'))
         date_time.set_value(1)
-        OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+        try:
+            OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+        except:
+            OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
         date_time.set_value(0)
         OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
         return
@@ -97,10 +100,10 @@ class EOS(object):
                 return value, choices
             else:
                 print(f"Config {config_name} not found")
-                return None
+                return None, None
         else:
             print(f"Config name must be a string")
-            return None
+            return None, None
         
     def get_file_info(self, file_path):
         '''
@@ -673,7 +676,10 @@ class EOS(object):
         drive_mode = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'drivemode'))
         drive_mode.set_value(list(drive_mode.get_choices())[1])
         release = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'eosremoterelease'))
-        OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+        try:
+            OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+        except:
+            OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
 
         # start shooting but activating remote trigger
         release.set_value('Immediate') # 5 == Immediate

@@ -20,13 +20,9 @@ files = cam1.list_files() # see files stored on storage media in the camera
 cam1.download_file(files[0], target_file='./test.jpg') # download a file from the camera to the PC
 
 cam1.set_exposure_manual() # set exposure mode to manual, which allows remote manipulation of iso, aperture, and shutterspeed
-current_value, choices, msg = cam1.set_shutterspeed('1/65')
-current_value, choices, msg = cam1.set_aperture(20)
-current_value, choices, msg = cam1.set_iso(list_choices=True) # what iso values are available?
-current_value, choices, msg = cam1.set_iso(120) # use 0 for auto
+[current_aperture, current_iso, current_shutterspeed, current_cAF], msgs = cam1.set_capture_parameters(aperture=20, iso=120, shutterspeed='1/65', c_AF=False)
 
 # msg = cam1.manual_focus(value=3) # focus manually
-current_value, msg = cam1.set_continuous_AF('Off')
 current_value, msg = cam1.set_AF_location(1000,500) # target a specific pixel location for AF
 msg = cam1.trigger_AF()
 
