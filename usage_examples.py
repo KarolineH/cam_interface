@@ -28,9 +28,9 @@ msg = cam1.trigger_AF()
 
 # Capturing images and video
 success, msg = cam1.capture_preview(target_file='./preview.jpg')
-success, msg = cam1.capture_immediate(download=True, target_path='.')
-success, msg = cam1.record_preview_video(t=1, target_file='./preview.mp4', resolution_prio=True)
+success, file_path, msg = cam1.capture_immediate(download=True, target_path='.')
+success, file_path, msg = cam1.record_preview_video(t=1, target_path='.', resolution_prio=True)
 success, files, msg = cam1.capture_burst(t=1)
 
 # And finally, record full-res video in VIDEO mode
-success, msg = cam1.record_video(t=1, download=True, target_path='.')
+success, file_path, msg = cam1.record_video(t=1, download=True, target_path='.')

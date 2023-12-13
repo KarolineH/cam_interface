@@ -408,6 +408,34 @@ class EOS(object):
                 OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
 
         return 'Reset completed'
+    
+    def capture_video(self, aperture=None, iso=None, shutterspeed=None, c_AF=None, duration=1, target_path='.'):
+        '''
+        Top-level API call to capture a video.
+        Selects the correct recording function based on camera mode.
+        Optionally change the capture parameters before starting the recording.
+        Input: aperture, iso, shutterspeed, c_AF: see set_capture_parameters()
+                duration: float, duration of the recording in seconds
+                target_path: string, path to the directory where the video will be saved
+        Output: success: bool, file_path: string, msg: string
+        '''
+
+        msgs = ''
+        # Change capture parameters if requested
+        input_params = [aperture, iso, shutterspeed, c_AF]
+        if any(param is not None for param in input_params):
+            [current_params] = self.get_capture_parameters()
+            new_params = [current_params[i] if item is None else item for i, item in enumerate(input_params)]
+            __ , msg = self.set_capture_parameters(*new_params)
+            msgs += msg
+
+        if self.mode == 0:
+            success, file_path, msg = self.record_preview_video(t=duration, target_path=target_path, resolution_prio=True)
+        else:
+            success, file_path, msg = self.record_video(t=duration, download=True, target_path=target_path)
+        msgs += msg
+        return success, file_path, msgs
+
 
     ''' PHOTO mode only methods'''
 
@@ -559,13 +587,13 @@ class EOS(object):
         ax1 = plt.subplot(111)
         im1 = ax1.imshow(im)
 
-        ani = FuncAnimation(ax1, self.update_live_view, fargs=(file_path), interval=50)
+        def update_live_view(i):
+            im = Image.open(file_path)
+            im1.set_data(im)
+
+        ani = FuncAnimation(ax1, update_live_view, interval=50)
         plt.show()
         return msg
-
-    def update_live_view(self, i, file_path):
-        im = Image.open(file_path)
-        im1.set_data(im)
 
     def capture_preview(self, target_file='./preview.jpg'):
         '''
@@ -587,13 +615,14 @@ class EOS(object):
         Taken an immeditate capture, triggering the shutter but without triggering the auto-focus first.
         Optionally download the image to the target path.
         The file will also be saved to the device and the file name will follow the camera's set naming convention.
+        Returns a boolean indicating success, the file path if saved to PC, and a message.
         Only supported in PHOTO mode.
         '''
 
         if self.mode == 1:
             error_msg = "Camera must be in PHOTO mode to capture static images"
             print(error_msg)
-            return False, error_msg
+            return False, None, error_msg
         
         release = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'eosremoterelease'))
         release.set_value('Immediate') # 5 == Immediate
@@ -609,18 +638,50 @@ class EOS(object):
                     cam_file.save(target_path+'/'+event_data.name)
                     release.set_value('None')
                     OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
-                    return True, 'downloaded'
+                    return True, 'target_path+'/'+event_data.name', 'downloaded'
                 elif time.time() > timeout:
                     error_msg = "Waiting for new file event timed out, capture may have failed."
                     print(error_msg)
                     release.set_value('None')
                     OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
-                    return False, error_msg
+                    return False, None, error_msg
         release.set_value('None')
         OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
-        return True, 'saved to camera'
+        return True, None, 'saved to camera'
     
-    def record_preview_video(self, t=1, target_file ='./prev_vid.mp4', resolution_prio=False):
+    def capture_image(self, aperture=None, iso=None, shutterspeed=None, c_AF=None, download=True, target_path='.'):
+        '''
+        Top-level API call to capture a single image.
+        Optionally change the capture parameters before starting the capture.
+        Selects the correct capture function based on camera mode.
+        Input: aperture, iso, shutterspeed, c_AF: see set_capture_parameters()
+                download: bool, whether to download the image to the target path
+                target_path: string, path to the directory where the image will be saved
+        Output: file_path: string, msg: string
+        '''
+
+        # Check if the camera is in the correct mode
+        if self.mode == 1:
+            error_msg = "Camera must be in PHOTO mode to capture static images"
+            print(error_msg)
+            return None, error_msg
+        
+        msgs = ''
+        # Change capture parameters if requested
+        input_params = [aperture, iso, shutterspeed, c_AF]
+        if any(param is not None for param in input_params):
+            [current_params] = self.get_capture_parameters()
+            new_params = [current_params[i] if item is None else item for i, item in enumerate(input_params)]
+            __ , msg = self.set_capture_parameters(*new_params)
+            msgs += msg
+
+        # Trigger the capture
+        success, file_path, msg = self.capture_immediate(download=download, target_path=target_path)
+        msgs += msg
+
+        return file_path, msgs
+    
+    def record_preview_video(self, t=1, target_path ='.', resolution_prio=False):
         '''
         Capture a series of previews (i.e. the viewfinder frames, with mirror up)
         for a duration of t seconds, and save them as a video file.
@@ -632,8 +693,9 @@ class EOS(object):
         if self.mode == 1:
             error_msg = "Camera must be in PHOTO mode to capture preview videos"
             print(error_msg)
-            return False, error_msg
+            return False, None, error_msg
         
+        target_file = target_path = '/prev_vid.mp4'
         if os.path.exists(target_file): # always overwrite existing file to prevent ffmpeg error
             os.remove(target_file)
 
@@ -685,7 +747,7 @@ class EOS(object):
                 OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
             except:
                 OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
-        return True, 'saved to computer'
+        return True, target_file, 'saved to computer'
     
     def capture_burst(self, t=0.5, save_timeout=5):
         '''
@@ -746,7 +808,7 @@ class EOS(object):
         if self.mode == 0:
             error_msg = "Camera must be in VIDEO mode to record full-res videos"
             print(error_msg)
-            return False, error_msg
+            return False, None, error_msg
         
         # recording
         rec_button = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'movierecordtarget'))
@@ -765,12 +827,12 @@ class EOS(object):
                 if event_type == gp.GP_EVENT_FILE_ADDED:
                     cam_file = self.camera.file_get(event_data.folder, event_data.name, gp.GP_FILE_TYPE_NORMAL)
                     cam_file.save(target_path+'/'+event_data.name)
-                    return True, 'File downloaded to PC'
+                    return True, target_path+'/'+event_data.name, 'File downloaded to PC'
                 elif time.time() > timeout:
                     error_msg = "Warning: Waiting for new file event timed out, capture may have failed."
                     print(error_msg)
-                    return True, error_msg
-        return True, 'saved to camera'
+                    return True, None, error_msg
+        return True, None, 'saved to camera'
 
 if __name__ == '__main__':
 
