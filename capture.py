@@ -540,6 +540,33 @@ class EOS(object):
             msg = f"AF point {x},{y} not supported, please input values between according to your selected image resolution, normally between 0 and 8192 for x and 0 and 5464 for y."
             return AF_point.get_value(), msg
     
+    def live_preview(self, file_path='./live_preview.jpg'):
+        '''
+        Display preview frames on the PC until the user interrupts the preview with Ctrl+C.
+        The images are NOT saved on the device or pc.
+        Note that the live preview is not available during capture.
+        Only supported in PHOTO mode.'''
+        if self.mode == 1:
+            msg = "Camera must be in PHOTO mode to display live preview"
+            print(msg)
+            return msg
+        
+        from PIL import Image
+        import matplotlib.pyplot as plt
+        from matplotlib.animation import FuncAnimation 
+        
+        im = Image.open(file_path)
+        ax1 = plt.subplot(111)
+        im1 = ax1.imshow(im)
+
+        ani = FuncAnimation(ax1, self.update_live_view, fargs=(file_path), interval=50)
+        plt.show()
+        return msg
+
+    def update_live_view(self, i, file_path):
+        im = Image.open(file_path)
+        im1.set_data(im)
+
     def capture_preview(self, target_file='./preview.jpg'):
         '''
         Capture a preview image (i.e. viewfinder frame, with the mirror up) and save it to the target file.
