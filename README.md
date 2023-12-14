@@ -11,8 +11,19 @@ If the card is new or was previously formatted (initialized) by another camera o
 7. To check if everything is ready, open a terminal and run 'gphoto2 --auto-detect'\
 If any of the cameras are not detected, please refer to gphoto2 documentation. 
 
+# Mode selection
+- Use PHOTO mode for capturing stills and also for maximum control over capture parameters, including ISO and autofocus 
+    - capture photos at full resolution
+    - capture photo bursts at ~ 9 fps
+    - a live preview video stream can be displayed with 960x640 resolution at around 15fps
+    - recording videos to file is possible at 1024x576 and ~25 fps OR at 960x640 and ~60 fps
+- Use VIDEO mode for full-resolution video capture
+    - With suitable storage media, the camera supports formats up to 8192x4320 and 60fps, please refer to the camera user guide for more details
+    - Note that this mode is not supported by older versions of gphoto2
+
+
 # Requirements:
-[gphoto2 >= 2.5.27](http://www.gphoto.org/doc/manual/index.html)\
+[gphoto2 >= 2.5.27, libphoto2 >= 2.5.31](http://www.gphoto.org/doc/manual/index.html) (We recommend using this [gphoto2-updater tool](https://github.com/gonzalo/gphoto2-updater) for installation)\
 [python-gphoto2 v2.5.1](https://github.com/jim-easterbrook/python-gphoto2)
 
 Tested with Python 3.10.12

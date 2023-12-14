@@ -402,6 +402,38 @@ class EOS(object):
             OK = self.set_config_helper()
 
         return 'Reset completed'
+        
+    def capture_image(self, aperture=None, iso=None, shutterspeed=None, c_AF=None, download=True, target_path='.'):
+        '''
+        Top-level API call to capture a single image.
+        Optionally change the capture parameters before starting the capture.
+        Selects the correct capture function based on camera mode.
+        Input: aperture, iso, shutterspeed, c_AF: see set_capture_parameters()
+                download: bool, whether to download the image to the target path
+                target_path: string, path to the directory where the image will be saved
+        Output: file_path: string, msg: string
+        '''
+
+        # Check if the camera is in the correct mode
+        if self.mode == 1:
+            error_msg = "Camera must be in PHOTO mode to capture static images"
+            print(error_msg)
+            return None, error_msg
+        
+        msgs = ''
+        # Change capture parameters if requested
+        input_params = [aperture, iso, shutterspeed, c_AF]
+        if any(param is not None for param in input_params):
+            [current_params] = self.get_capture_parameters()
+            new_params = [current_params[i] if item is None else item for i, item in enumerate(input_params)]
+            __ , msg = self.set_capture_parameters(*new_params)
+            msgs += msg
+
+        # Trigger the capture
+        success, file_path, msg = self.capture_immediate(download=download, target_path=target_path)
+        msgs += msg
+
+        return file_path, msgs
     
     def capture_video(self, aperture=None, iso=None, shutterspeed=None, c_AF=None, duration=1, target_path='.'):
         '''
@@ -565,9 +597,10 @@ class EOS(object):
     
     def live_preview(self, file_path='./live_preview.jpg'):
         '''
-        Display preview frames on the PC until the user interrupts the preview with Ctrl+C.
+        Display preview frames on the PC until the user interrupts the preview with 'q'.
+        Usually 960x640 at around 15 fps.
         The images are NOT saved on the device or pc.
-        Note that the live preview is not available during capture.
+        Note that the live preview is not available during capture. This function temporarily blocks the USB I/O. Stop the live preview before changing configurations or starting a capture.
         Only supported in PHOTO mode.'''
         if self.mode == 1:
             msg = "Camera must be in PHOTO mode to display live preview"
@@ -578,17 +611,26 @@ class EOS(object):
         import matplotlib.pyplot as plt
         from matplotlib.animation import FuncAnimation 
         
+        self.capture_preview(target_file=file_path)
         im = Image.open(file_path)
         ax1 = plt.subplot(111)
         im1 = ax1.imshow(im)
 
         def update_live_view(i):
+            self.capture_preview(target_file=file_path)
             im = Image.open(file_path)
             im1.set_data(im)
 
-        ani = FuncAnimation(ax1, update_live_view, interval=50)
+        ani = FuncAnimation(plt.gcf(), update_live_view, interval=50)
+
+        def close(event):
+            if event.key == 'q':
+                plt.close(event.canvas.figure)
+
+        cid = plt.gcf().canvas.mpl_connect("key_press_event", close)
+        print('Press q to quit')
         plt.show()
-        return msg
+        return
 
     def capture_preview(self, target_file='./preview.jpg'):
         '''
@@ -643,38 +685,6 @@ class EOS(object):
         release.set_value('None')
         OK = self.set_config_helper()
         return True, None, 'saved to camera'
-    
-    def capture_image(self, aperture=None, iso=None, shutterspeed=None, c_AF=None, download=True, target_path='.'):
-        '''
-        Top-level API call to capture a single image.
-        Optionally change the capture parameters before starting the capture.
-        Selects the correct capture function based on camera mode.
-        Input: aperture, iso, shutterspeed, c_AF: see set_capture_parameters()
-                download: bool, whether to download the image to the target path
-                target_path: string, path to the directory where the image will be saved
-        Output: file_path: string, msg: string
-        '''
-
-        # Check if the camera is in the correct mode
-        if self.mode == 1:
-            error_msg = "Camera must be in PHOTO mode to capture static images"
-            print(error_msg)
-            return None, error_msg
-        
-        msgs = ''
-        # Change capture parameters if requested
-        input_params = [aperture, iso, shutterspeed, c_AF]
-        if any(param is not None for param in input_params):
-            [current_params] = self.get_capture_parameters()
-            new_params = [current_params[i] if item is None else item for i, item in enumerate(input_params)]
-            __ , msg = self.set_capture_parameters(*new_params)
-            msgs += msg
-
-        # Trigger the capture
-        success, file_path, msg = self.capture_immediate(download=download, target_path=target_path)
-        msgs += msg
-
-        return file_path, msgs
     
     def record_preview_video(self, t=1, target_path ='.', resolution_prio=False):
         '''
@@ -823,11 +833,5 @@ class EOS(object):
 if __name__ == '__main__':
 
     cam1 = EOS()
-    cam1.reset_after_abort()
-    cam1.trigger_AF()
-    cam1.set_aperture('AUTO')
-    cam1.set_continuous_AF(value='On')
-    #cam1.set_iso(value=120,list_choices=True)
-    #cam1.capture_image(download=False, target_path='./', AF=True)
-
+    # cam1.live_preview()
     print("Camera initalised")
