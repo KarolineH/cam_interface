@@ -51,6 +51,16 @@ class EOS(object):
 
     ''' Universal Methods, work in both PHOTO and VIDEO mode '''
 
+    def set_config_helper(self):
+        success = False
+        while not success:
+            try:
+                OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+                success = True
+            except:
+                pass
+        return success
+
 
     def list_all_config(self):
         '''
@@ -74,12 +84,9 @@ class EOS(object):
         '''
         date_time = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'syncdatetimeutc'))
         date_time.set_value(1)
-        try:
-            OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
-        except:
-            OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+        OK = self.set_config_helper()
         date_time.set_value(0)
-        OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+        OK = self.set_config_helper()
         return
 
     def get_config(self, config_name=None):
@@ -199,9 +206,9 @@ class EOS(object):
     
         mf = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'manualfocusdrive'))
         mf.set_value(list(mf.get_choices())[value])
-        OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+        OK = self.set_config_helper()
         mf.set_value(list(mf.get_choices())[3]) # set back to 'None'
-        OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+        OK = self.set_config_helper()
         return msg
     
     def get_capture_parameters(self):
@@ -306,11 +313,7 @@ class EOS(object):
                 value = int(value)
 
         aperture.set_value(str(value))
-        try:
-            OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
-            # this catches an "I/O busy" error that sometimes occurs
-        except:
-            OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+        OK = self.set_config_helper()
         current = 'AUTO' if aperture.get_value() == 'Unknown value 00ff' else aperture.get_value()
         return current, msg
     
@@ -350,7 +353,7 @@ class EOS(object):
                 value = closest
         
         shutterspeed.set_value(value)
-        OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+        OK = self.set_config_helper()
         current = 'AUTO' if shutterspeed.get_value() == 'bulb' else shutterspeed.get_value()
         return current, msg
     
@@ -377,7 +380,7 @@ class EOS(object):
         value = value_dict[value]
         c_AF = gp.check_result(gp.gp_widget_get_child_by_name(self.config, config))
         c_AF.set_value(value)
-        OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+        OK = self.set_config_helper()
         return value, ''
 
     def reset_after_abort(self):
@@ -391,21 +394,12 @@ class EOS(object):
 
             drive_mode = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'drivemode'))
             drive_mode.set_value(list(drive_mode.get_choices())[0])
-            
-            try:
-                OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
-            except:
-                OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
-
+            OK = self.set_config_helper()
         else:
 
             rec_button = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'movierecordtarget'))
             rec_button.set_value('None')
-            
-            try:
-                OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
-            except:
-                OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+            OK = self.set_config_helper()
 
         return 'Reset completed'
     
@@ -450,7 +444,7 @@ class EOS(object):
             print(err)
             return
         exp_mode.set_value('Fv') # 'Fv' == Canon's 'Flexible-Priority Auto Exposure', useful for manual access
-        OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+        OK = self.set_config_helper()
         return
 
     def set_iso(self, value='AUTO'):
@@ -489,7 +483,7 @@ class EOS(object):
                 value = closest
             value = str(value)
             iso.set_value(value)
-        OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+        OK = self.set_config_helper()
         return value, msg
 
     def set_image_format(self, value=0, list_choices=False):
@@ -520,7 +514,7 @@ class EOS(object):
                 return im_format.get_value(), choices, msg
             
         OK = gp.check_result(gp.gp_widget_set_value(im_format, value))
-        OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+        OK = self.set_config_helper()
         return value, choices, msg
     
     def trigger_AF(self):
@@ -536,11 +530,12 @@ class EOS(object):
             msg = "Camera must be in PHOTO mode to manually trigger auto focus"
             print(msg)
             return msg
+        
         AF_action = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'autofocusdrive'))
         OK = gp.check_result(gp.gp_widget_set_value(AF_action, 1))
-        OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+        OK = self.set_config_helper()
         OK = gp.check_result(gp.gp_widget_set_value(AF_action, 0))
-        OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+        OK = self.set_config_helper()
         return 'AF triggered once'
     
     def set_AF_location(self, x, y):
@@ -562,7 +557,7 @@ class EOS(object):
         AF_point = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'eoszoomposition'))
         if 0 <= x <= 8192 and 0 <= y <= 5464:
             OK = gp.check_result(gp.gp_widget_set_value(AF_point, f"{x},{y}"))
-            OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+            OK = self.set_config_helper()
             return f'{x},{y}', msg
         else:
             msg = f"AF point {x},{y} not supported, please input values between according to your selected image resolution, normally between 0 and 8192 for x and 0 and 5464 for y."
@@ -626,7 +621,7 @@ class EOS(object):
         
         release = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'eosremoterelease'))
         release.set_value('Immediate') # 5 == Immediate
-        OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+        OK = self.set_config_helper()
         if download:
             timeout = time.time() + 5
             while True:
@@ -637,16 +632,16 @@ class EOS(object):
                     cam_file = self.camera.file_get(event_data.folder, event_data.name, gp.GP_FILE_TYPE_NORMAL)
                     cam_file.save(target_path+'/'+event_data.name)
                     release.set_value('None')
-                    OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
-                    return True, 'target_path+'/'+event_data.name', 'downloaded'
+                    OK = self.set_config_helper()
+                    return True, target_path+'/'+event_data.name, 'downloaded'
                 elif time.time() > timeout:
                     error_msg = "Waiting for new file event timed out, capture may have failed."
                     print(error_msg)
                     release.set_value('None')
-                    OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+                    OK = self.set_config_helper()
                     return False, None, error_msg
         release.set_value('None')
-        OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+        OK = self.set_config_helper()
         return True, None, 'saved to camera'
     
     def capture_image(self, aperture=None, iso=None, shutterspeed=None, c_AF=None, download=True, target_path='.'):
@@ -704,14 +699,11 @@ class EOS(object):
         if resolution_prio:
             mode = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'eosmoviemode'))
             mode.set_value(1)
-            try:
-                OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
-            except:
-                OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+            OK = self.set_config_helper()
         else:
             frame_size = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'liveviewsize'))
             frame_size.set_value('Large') # set to max size: 960x640
-            OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+            OK = self.set_config_helper()
 
         # Attempting to recreate the bash command "gphoto2 --capture-movie"
         # under the hood, this just takes repeated preview captures
@@ -743,10 +735,7 @@ class EOS(object):
 
         if resolution_prio:
             mode.set_value(0)
-            try:
-                OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
-            except:
-                OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+            OK = self.set_config_helper()
         return True, target_file, 'saved to computer'
     
     def capture_burst(self, t=0.5, save_timeout=5):
@@ -765,18 +754,15 @@ class EOS(object):
         drive_mode = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'drivemode'))
         drive_mode.set_value(list(drive_mode.get_choices())[1])
         release = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'eosremoterelease'))
-        try:
-            OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
-        except:
-            OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+        OK = self.set_config_helper()
 
         # start shooting but activating remote trigger
         release.set_value('Immediate') # 5 == Immediate
-        OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+        OK = self.set_config_helper()
         time.sleep(t) # wait for the desired duration
         # and turn the trigger OFF again
         release.set_value('Release Full')
-        OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+        OK = self.set_config_helper()
 
         # after the burst is over, fetch all the files
         # this allows for faster shooting rather than saving files after each capture
@@ -792,7 +778,7 @@ class EOS(object):
 
         # Finally, set the drive mode back to individual captures
         drive_mode.set_value(list(drive_mode.get_choices())[0])
-        OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+        OK = self.set_config_helper()
         return True, files, 'saved to camera'
 
 
@@ -813,10 +799,10 @@ class EOS(object):
         # recording
         rec_button = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'movierecordtarget'))
         rec_button.set_value('Card')
-        OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+        OK = self.set_config_helper()
         time.sleep(t)
         rec_button.set_value('None')
-        OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
+        OK = self.set_config_helper()
 
         # fetching the file
         timeout = time.time() + save_timeout
@@ -838,6 +824,7 @@ if __name__ == '__main__':
 
     cam1 = EOS()
     cam1.reset_after_abort()
+    cam1.trigger_AF()
     cam1.set_aperture('AUTO')
     cam1.set_continuous_AF(value='On')
     #cam1.set_iso(value=120,list_choices=True)
