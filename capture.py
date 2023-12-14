@@ -38,6 +38,7 @@ class EOS(object):
         self.mode = self.get_camera_mode() # detects the manual switch state: 0 == PHOTO, 1 == VIDEO
         if self.mode == 0:
             self.set_exposure_manual() # set the camera's auto-exposure mode to manual, so that shutter, aperture, and iso can be set remotely
+            self.set_save_target() # set the camera's save target to the SD card, so that all captures are saved to the SD card by default
 
         # set the main capture configuration options for both PHOTO and VIDEO mode
         if self.mode == 0:
@@ -502,6 +503,15 @@ class EOS(object):
         exp_mode = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'autoexposuremodedial'))
         success = exp_mode.get_value() == 'Fv'
         return success
+    
+    def set_save_target(self):
+        '''
+        Set the camera's save target to the SD card, so that all captures are saved to the SD card by default.
+        '''
+        cap_target = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'capturetarget'))
+        cap_target.set_value('1') # Memory card
+        OK = self.set_config_helper()
+        return
 
     def set_iso(self, value='AUTO'):
         '''
@@ -685,8 +695,7 @@ class EOS(object):
     def capture_immediate(self, download=True, target_path='.'):
         '''
         Taken an immeditate capture, triggering the shutter but without triggering the auto-focus first.
-        Optionally download the image to the target path.
-        The file will also be saved to the device and the file name will follow the camera's set naming convention.
+        Optionally download the image to the target path. The file name will follow the camera's set naming convention.
         Returns a boolean indicating success, the file path if saved to PC, and a message.
         Only supported in PHOTO mode.
         '''
@@ -869,8 +878,4 @@ if __name__ == '__main__':
 
     cam1 = EOS()
     # cam1.live_preview()
-    cam1.set_capture_parameters(aperture=2.8, shutterspeed=1/50, c_AF='Off')
-    cam1.record_preview_video(t=2)
-    cam1.capture_image()
-    cam1.set_aperture(5.6)
     print("Camera initalised")
