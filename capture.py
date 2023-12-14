@@ -52,6 +52,10 @@ class EOS(object):
     ''' Universal Methods, work in both PHOTO and VIDEO mode '''
 
     def set_config_helper(self):
+        '''
+        Helper function to 'push' a new configuration to the camera.
+        This function catches a common "I/O Busy" error and makes sure the configuration is set, even if the port is busy for a moment.
+        '''
         success = False
         while not success:
             try:
@@ -60,7 +64,6 @@ class EOS(object):
             except:
                 pass
         return success
-
 
     def list_all_config(self):
         '''
@@ -74,6 +77,7 @@ class EOS(object):
         Detect whether the physical switch on the camera is set to photo or video mode
         Output: int 0 == PHOTO, 1 == VIDEO
         '''
+        self.config = self.camera.get_config()
         switch = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'eosmovieswitch'))
         value = gp.check_result(gp.gp_widget_get_value(switch))
         return int(value)
@@ -94,6 +98,7 @@ class EOS(object):
         Get the current value and all choices of a named configuration
         Output: tuple (string: current value, list of strings: choices)
         '''
+        self.config = self.camera.get_config()
         if type(config_name)==str:
             config_name = config_name.lower()
             if config_name in self.list_all_config():
@@ -221,18 +226,21 @@ class EOS(object):
     
     def get_aperture(self):
         '''Get the current aperture (f-number) setting.'''
+        self.config = self.camera.get_config()
         aperture = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'aperture'))
         current = 'AUTO' if aperture.get_value() == 'Unknown value 00ff' or aperture.get_value() == 'implicit auto' else aperture.get_value()
         return current
     
     def get_shutterspeed(self):
         '''Get the current shutter speed setting.'''
+        self.config = self.camera.get_config()
         shutterspeed = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'shutterspeed'))
         current = 'AUTO' if shutterspeed.get_value() == 'bulb' or shutterspeed.get_value() == 'auto' else shutterspeed.get_value()
         return current
     
     def get_continuous_AF(self):
         '''Get the current continuous auto focus setting.'''
+        self.config = self.camera.get_config()
         if self.mode == 0:
             config = 'continuousaf'
         else:
@@ -242,12 +250,13 @@ class EOS(object):
     
     def get_iso(self):
         '''Get the current ISO setting.'''
+        self.config = self.camera.get_config()
         if self.mode == 1:
             #TODO: Double check if there is no way to get this value in VIDEO mode
             return None
         iso = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'iso'))
         current = 'AUTO' if iso.get_value() == 'Auto' else iso.get_value()
-        return iso.get_value()
+        return current
     
     def set_capture_parameters(self, aperture=None, iso=None, shutterspeed=None, c_AF=None):
         '''Set the aperture, iso, shutter speed, and continuous auto focus.'''
@@ -255,24 +264,20 @@ class EOS(object):
         if aperture is not None:
             current_aperture, msg = self.set_aperture(aperture)
             msgs += msg
-        else:
-            current_aperture = self.get_aperture()
         if shutterspeed is not None:
             current_shutterspeed, msg = self.set_shutterspeed(shutterspeed)
             msgs += msg
-        else:
-            current_shutterspeed = self.get_shutterspeed()
         if c_AF is not None:
             current_cAF, msg = self.set_continuous_AF(c_AF)
             msgs += msg
-        else:
-            current_cAF = self.get_continuous_AF()
         if iso is not None and self.mode == 0:
             current_iso, msg = self.set_iso(iso)
             msgs += msg
         else:
             current_iso = self.get_iso()
-        msgs += '... Capture parameters set'
+
+        current_aperture, current_iso, current_shutterspeed, current_cAF = self.get_capture_parameters()
+        msgs += '... Capture parameters set. '
         return [current_aperture, current_iso, current_shutterspeed, current_cAF], msgs
     
     def set_aperture(self, value='AUTO'):
@@ -284,7 +289,7 @@ class EOS(object):
 
         WARNING: !! In VIDEO mode, AUTO setting is still untested. Might have to set 'Iris Mode' to 'Automatic' in the camera menu if you need auto aperture. !!
         '''
-
+        self.config = self.camera.get_config()
         aperture = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'aperture'))
         msg = ''
         if value == 'AUTO':
@@ -305,7 +310,7 @@ class EOS(object):
             # if the exact value specified is not supported, use the closest option
             if value not in self.aperture_choices:
                 closest = min(self.aperture_choices, key=lambda x: abs(x - value))
-                msg = f'Aperture of {value} not supported, using closest option of {closest}'
+                msg = f'Aperture of {value} not supported, using closest option (or reformatting) to {closest}'
                 print(msg)
                 value = closest
             # gphoto2 only accepts strings formated as proper decimal numbers or integers without trailing zeros
@@ -314,6 +319,10 @@ class EOS(object):
 
         aperture.set_value(str(value))
         OK = self.set_config_helper()
+
+        # check that the change has been applied
+        self.config = self.camera.get_config()
+        aperture = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'aperture'))
         current = 'AUTO' if aperture.get_value() == 'Unknown value 00ff' else aperture.get_value()
         return current, msg
     
@@ -324,7 +333,7 @@ class EOS(object):
         Input: Numeric string of the form '1/50' or '0.5' or '25', or int/float, or the string 'AUTO'.
         Ooutput: the current setting (string), a potential error message (string)
         '''
-
+        self.config = self.camera.get_config()
         shutterspeed = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'shutterspeed'))
         msg = ''
         if value == 'AUTO':
@@ -354,6 +363,10 @@ class EOS(object):
         
         shutterspeed.set_value(value)
         OK = self.set_config_helper()
+
+        # Check that the change has been applied
+        self.config = self.camera.get_config()
+        shutterspeed = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'shutterspeed'))
         current = 'AUTO' if shutterspeed.get_value() == 'bulb' else shutterspeed.get_value()
         return current, msg
     
@@ -381,7 +394,12 @@ class EOS(object):
         c_AF = gp.check_result(gp.gp_widget_get_child_by_name(self.config, config))
         c_AF.set_value(value)
         OK = self.set_config_helper()
-        return value, ''
+
+        # Check that the change has been applied
+        self.config = self.camera.get_config()
+        c_AF = gp.check_result(gp.gp_widget_get_child_by_name(self.config, config))
+        current = c_AF.get_value()
+        return current, ''
 
     def reset_after_abort(self):
         if self.mode == 0: # this refers to the mode at initialisation of this camera, not the current mode
@@ -424,9 +442,10 @@ class EOS(object):
         # Change capture parameters if requested
         input_params = [aperture, iso, shutterspeed, c_AF]
         if any(param is not None for param in input_params):
-            [current_params] = self.get_capture_parameters()
+            current_params = self.get_capture_parameters()
+            current_params = list(current_params)
             new_params = [current_params[i] if item is None else item for i, item in enumerate(input_params)]
-            __ , msg = self.set_capture_parameters(*new_params)
+            set_params, msg = self.set_capture_parameters(*new_params)
             msgs += msg
 
         # Trigger the capture
@@ -477,7 +496,12 @@ class EOS(object):
             return
         exp_mode.set_value('Fv') # 'Fv' == Canon's 'Flexible-Priority Auto Exposure', useful for manual access
         OK = self.set_config_helper()
-        return
+
+        # Check that the change has been applied
+        self.config = self.camera.get_config()
+        exp_mode = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'autoexposuremodedial'))
+        success = exp_mode.get_value() == 'Fv'
+        return success
 
     def set_iso(self, value='AUTO'):
         '''
@@ -486,6 +510,7 @@ class EOS(object):
         Input: int, numeric string, or string 'AUTO'
         Output: current value, potential error message
         '''
+        self.config = self.camera.get_config()
         msg = ''
         if self.mode == 1:
             msg = "Camera must be in PHOTO mode to manually set ISO."
@@ -516,7 +541,12 @@ class EOS(object):
             value = str(value)
             iso.set_value(value)
         OK = self.set_config_helper()
-        return value, msg
+
+        # Check that the change has been applied
+        self.config = self.camera.get_config()
+        iso = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'iso'))
+        current = 'AUTO' if iso.get_value() == 'Auto' else iso.get_value()
+        return current, msg
 
     def set_image_format(self, value=0, list_choices=False):
         '''
@@ -547,7 +577,12 @@ class EOS(object):
             
         OK = gp.check_result(gp.gp_widget_set_value(im_format, value))
         OK = self.set_config_helper()
-        return value, choices, msg
+
+        # Check that the change has been applied
+        self.config = self.camera.get_config()
+        im_format = gp.check_result(gp.gp_widget_get_child_by_name(self.config, 'imageformat'))
+        current = im_format.get_value()
+        return current, choices, msg
     
     def trigger_AF(self):
         '''
@@ -673,16 +708,16 @@ class EOS(object):
                 if event_type == gp.GP_EVENT_FILE_ADDED:
                     cam_file = self.camera.file_get(event_data.folder, event_data.name, gp.GP_FILE_TYPE_NORMAL)
                     cam_file.save(target_path+'/'+event_data.name)
-                    release.set_value('None')
+                    release.set_value('Release Full')
                     OK = self.set_config_helper()
                     return True, target_path+'/'+event_data.name, 'downloaded'
                 elif time.time() > timeout:
                     error_msg = "Waiting for new file event timed out, capture may have failed."
                     print(error_msg)
-                    release.set_value('None')
+                    release.set_value('Release Full')
                     OK = self.set_config_helper()
                     return False, None, error_msg
-        release.set_value('None')
+        release.set_value('Release Full')
         OK = self.set_config_helper()
         return True, None, 'saved to camera'
     
@@ -700,7 +735,7 @@ class EOS(object):
             print(error_msg)
             return False, None, error_msg
         
-        target_file = target_path = '/prev_vid.mp4'
+        target_file = target_path + '/prev_vid.mp4'
         if os.path.exists(target_file): # always overwrite existing file to prevent ffmpeg error
             os.remove(target_file)
 
@@ -834,4 +869,8 @@ if __name__ == '__main__':
 
     cam1 = EOS()
     # cam1.live_preview()
+    cam1.set_capture_parameters(aperture=2.8, shutterspeed=1/50, c_AF='Off')
+    cam1.record_preview_video(t=2)
+    cam1.capture_image()
+    cam1.set_aperture(5.6)
     print("Camera initalised")
