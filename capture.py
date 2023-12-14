@@ -36,6 +36,7 @@ class EOS(object):
         self.camera.init()
         self.config = self.camera.get_config()
         self.mode = self.get_camera_mode() # detects the manual switch state: 0 == PHOTO, 1 == VIDEO
+        self.check_storage_medium() # check if an SD card is inserted and warn the user if not
         if self.mode == 0:
             self.set_exposure_manual() # set the camera's auto-exposure mode to manual, so that shutter, aperture, and iso can be set remotely
             self.set_save_target() # set the camera's save target to the SD card, so that all captures are saved to the SD card by default
@@ -117,6 +118,15 @@ class EOS(object):
         else:
             print(f"Config name must be a string")
             return None, None
+        
+    def check_storage_medium(self):
+        if len(list(self.camera.folder_list_folders('/'))) < 1:
+            print('No storage medium detected')
+            import warnings
+            warnings.warn("Warning: No storage medium detected. Your captures might not be saved and you might run into errors later! Please make sure you have an SD card inserted and try again.")
+            return False
+        else:
+            return True
         
     def get_file_info(self, file_path):
         '''
