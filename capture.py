@@ -848,6 +848,7 @@ class EOS(object):
         Should achieve about 8-9fps. Returns a list of file locations on the camera.
         Only supported in PHOTO mode.
         Input: t=duration in seconds (int or float)
+        Outputs: success=boolean, files=list of strings, msg=string
         '''
         if self.mode == 1:
             error_msg = "Camera must be in PHOTO mode to capture burst"
@@ -890,6 +891,7 @@ class EOS(object):
         Resolution and file formats are set in the camera's menu. Storage medium must be inserted.
         Only supported in VIDEO mode.
         Inputs: t=duration in seconds (int or float), download=boolean, target_path=string
+        Output: success=boolean, file_path=string, msg=string
         '''
         if self.mode == 0:
             error_msg = "Camera must be in VIDEO mode to record full-res videos"

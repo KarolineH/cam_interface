@@ -20,7 +20,7 @@ files = cam1.list_files() # see files stored on storage media in the camera
 cam1.download_file(files[0], target_file='./test.jpg') # download a file from the camera to the PC
 
 cam1.set_exposure_manual() # set exposure mode to manual, which allows remote manipulation of iso, aperture, and shutterspeed
-[current_aperture, current_iso, current_shutterspeed, current_cAF], msgs = cam1.set_capture_parameters(aperture=20, iso=120, shutterspeed='1/65', c_AF=False)
+msgs = cam1.set_capture_parameters(aperture=20, iso=120, shutterspeed='1/65', c_AF=False)
 
 # msg = cam1.manual_focus(value=3) # focus manually
 current_value, msg = cam1.set_AF_location(1000,500) # target a specific pixel location for AF
@@ -28,8 +28,9 @@ msg = cam1.trigger_AF()
 
 # Capturing images and video
 success, msg = cam1.capture_preview(target_file='./preview.jpg')
-success, file_path, msg = cam1.capture_immediate(download=True, target_path='.')
-success, file_path, msg = cam1.record_preview_video(t=1, target_path='.', resolution_prio=True)
+cam1.live_preview() # start live preview, stop with q
+out_file, msg = cam1.capture_image(download=True, target_file='./image.jpg')
+success, out_file, msg = cam1.record_video(t=1, download=True, target_path='.')
 success, files, msg = cam1.capture_burst(t=1)
 
 # And finally, record full-res video in VIDEO mode
