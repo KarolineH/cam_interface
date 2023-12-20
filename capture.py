@@ -54,7 +54,7 @@ class EOS(object):
 
     ''' Universal Methods, work in both PHOTO and VIDEO mode '''
 
-    def set_config_and_confirm(self, config_names, values):
+    def set_config_and_confirm(self, config_names, values, timeout=10):
         '''
         Helper function to set and 'push' a list of new configurations to the camera.
         This function then also fetches the currently active configuration from the camera to confirm that the named configurations have been updated successfully.
@@ -63,16 +63,21 @@ class EOS(object):
         # TODO: add timeout and warning
 
         # First, change all the given values
-        for config_name, value in zip(config_names, values):
-            conf = gp.check_result(gp.gp_widget_get_child_by_name(self.config, config_name))
-            conf.set_value(value)
+        try:
+            for config_name, value in zip(config_names, values):
+                conf = gp.check_result(gp.gp_widget_get_child_by_name(self.config, config_name))
+                conf.set_value(value)
+        except Exception as err:
+            print(f"Unhandled gphoto2 error: ({err}) while setting config {config_name} to {value}")
+            return False
 
         # Then push all changes to the camera
         success = False
         while not success:
             try:
                 OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
-                while not success:
+                start = time.time()
+                while not success and time.time() - start < timeout:
                     # Check if the camera has updated the configuration
                     # This should prevent any commands being skipped
                     new_config = self.camera.get_config()
@@ -83,7 +88,15 @@ class EOS(object):
                     else:
                         success = True # this is only reached if the for loop is not broken 
                         self.config = new_config
-            except:
+                        break
+                else:
+                    print(f"Camera did not confirm new configuration within {timeout} seconds")
+                    return False
+            except Exception as err:
+                if '-110' in str(err):
+                    error_msg = f"Camera is busy, retrying..."
+                else:
+                    error_msg = f"Unhandled gphoto2 error: ({err}) while setting config {config_name} to {value}"
                 # this is only here to catch an "I/O Busy" error and make sure the command is sent, even if the port is busy for a moment
                 pass
         return success
@@ -103,8 +116,11 @@ class EOS(object):
                 conf.set_value(value)
                 OK = gp.check_result(gp.gp_camera_set_config(self.camera, self.config))
                 success = True
-            except:
-                # this is only here to catch an "I/O Busy" error and make sure the command is sent, even if the port is busy for a moment
+            except Exception as err:
+                if '-110' in str(err):  # this is only here to catch an "I/O Busy" error and make sure the command is sent, even if the port is busy for a moment
+                    error_msg = f"Camera is busy, retrying..."
+                else:
+                    error_msg = f"Unhandled gphoto2 error: ({err}) while setting config {config_name} to {value}"
                 pass
         return success
     
@@ -128,8 +144,8 @@ class EOS(object):
         '''
         Sync the camera's date and time with the connected computer's date and time.
         '''
-        self.set_config_and_confirm(['syncdatetimeutc'], [1])
-        self.set_config_and_confirm(['syncdatetimeutc'], [0])
+        self.set_config_fire_and_forget('syncdatetimeutc', 1)
+        self.set_config_fire_and_forget('syncdatetimeutc', 0)
         return
 
     def get_config(self, config_name=None):
@@ -907,17 +923,4 @@ if __name__ == '__main__':
 
     cam1 = EOS()
     # cam1.live_preview()
-    # cam1.manual_focus(6)
-    # cam1.set_aperture(4)
-    # cam1.set_shutterspeed(2)
-    # cam1.set_shutterspeed(1/8000)
-    # cam1.set_shutterspeed(2)
-    # cam1.set_shutterspeed(1/8000)
-
-    out_file, msg = cam1.capture_image(aperture=32, iso=51200, shutterspeed='1/8000', download=False)
-    out_file, msg = cam1.capture_image(aperture=2, iso=100, shutterspeed='1/80', download=False)
-    cam1.set_aperture(2)
-    cam1.reset_after_abort()
-    cam1.manual_focus(6)
-    cam1.sync_date_time()
     print("Camera initalised")
