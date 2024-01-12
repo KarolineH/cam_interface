@@ -787,9 +787,10 @@ class EOS(object):
                 return False, None, error_msg
     
     class LiveStreamer:
-        # are these two the same?:
-        #capture = gp.check_result(gp.gp_camera_capture_preview(self.camera))
-        #capture = self.camera.capture_preview()
+        # DRAFT!
+        # A class to provide the liveview feed as a generator
+        # Frames can be piped straight to another process from here
+        # No images are being saved to the camera storage device first.
 
         def __init__(self, outer_self):
             self.outer_self = outer_self
@@ -799,6 +800,9 @@ class EOS(object):
             self.is_streaming = True
             while self.is_streaming:
                 capture = self.outer_self.camera.capture_preview()
+                        # TODO: are these two the same?:
+                                #   capture = gp.check_result(gp.gp_camera_capture_preview(self.camera))
+                                #   capture = self.camera.capture_preview()
                 filedata = capture.get_data_and_size()
                 data = memoryview(filedata)
                 # Yield the frame data for external processing
@@ -808,6 +812,12 @@ class EOS(object):
             self.is_streaming = False
 
     def record_live_feed(self, target_path ='.'):
+        # DRAFT!
+        # Test function to use the LiveStreamer class 
+        # pipe liveview to ffmpeg to save as video file
+        # also testing an interrupt via button press
+        # there should maybe be different options, including predefined durations
+
         streamer = self.LiveStreamer(self)
         stream_generator = streamer.start_stream()
 
