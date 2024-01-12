@@ -698,7 +698,7 @@ class EOS(object):
             msg = f"AF point {x},{y} not supported, please input values between according to your selected image resolution, normally between 0 and 8192 for x and 0 and 5464 for y."
             return AF_point.get_value(), msg
     
-    def live_preview(self, file_path='./live_preview.jpg'):
+    def show_live_preview(self, file_path='./live_preview.jpg'):
         '''
         Display preview frames on the PC until the user interrupts the preview with 'q'.
         Usually 960x640 at around 15 fps.
@@ -753,7 +753,8 @@ class EOS(object):
     def capture_immediate(self, download=True, target_path='.'):
         '''
         Taken an immeditate capture, triggering the shutter but without triggering the auto-focus first.
-        Optionally download the image to the target path. The file name will follow the camera's set naming convention.
+        Image is saved to camera's storage device first, optionally download the image to the target path. 
+        The file name will follow the camera's set naming convention.
         Returns a boolean indicating success, the file path if saved to PC, and a message.
         Only supported in PHOTO mode.
         '''
@@ -785,11 +786,60 @@ class EOS(object):
                 self.set_config_fire_and_forget(['eosremoterelease'], ['Release Full']) # reset shutter
                 return False, None, error_msg
     
+    class LiveStreamer:
+        # are these two the same?:
+        #capture = gp.check_result(gp.gp_camera_capture_preview(self.camera))
+        #capture = self.camera.capture_preview()
+
+        def __init__(self, outer_self):
+            self.outer_self = outer_self
+            self.is_streaming = False 
+
+        def start_stream(self):
+            self.is_streaming = True
+            while self.is_streaming:
+                capture = self.outer_self.camera.capture_preview()
+                filedata = capture.get_data_and_size()
+                data = memoryview(filedata)
+                # Yield the frame data for external processing
+                yield data.tobytes()
+
+        def stop_stream(self):
+            self.is_streaming = False
+
+    def record_live_feed(self, target_path ='.'):
+        streamer = self.LiveStreamer(self)
+        stream_generator = streamer.start_stream()
+
+        # Define the function to stop the stream based on a key press
+        def on_key(event):
+            if event.key == 'q':
+                streamer.stop_stream()
+        
+        # now this could be another process too
+        external_process_command = [
+            'ffmpeg', 
+            '-f', 'image2pipe',           # Input format
+            '-vcodec', 'mjpeg',
+            '-i', '-',                    # Input comes from a pipe
+            '-c:v', 'libx264',            # Video codec to use for encoding
+            '-pix_fmt', 'yuvj422p',        # Output pixel format
+            target_file                           # Output file path
+        ]
+        external_process = subprocess.Popen(external_process_command, stdin=subprocess.PIPE)
+        for frame in stream_generator:
+            external_process.stdin.write(frame_data)
+
+        external_process.stdin.close()
+        external_process.wait()
+        return
+
+
     def record_preview_video(self, t=1, target_path ='.', resolution_prio=False):
         '''
         Capture a series of previews (i.e. the viewfinder frames, with mirror up)
-        for a duration of t seconds, and save them as a video file.
-        The file will not be saved to the device.
+        for a duration of t seconds, pipe them directly to the PC save them as a video file on the PC.
+        The file will not be saved to the camera's storage device.
         Note that this function will overwrite existing files in the specified location!
         Only supported in PHOTO mode.
         Inputs: t=duration in seconds (int or float), target_file=string with file path, resolution_prio=boolean
@@ -845,7 +895,9 @@ class EOS(object):
     def capture_burst(self, t=0.5, save_timeout=5):
         '''
         Shoot a quick burst of full-scale images for a duration of t seconds.
-        Should achieve about 8-9fps. Returns a list of file locations on the camera.
+        Should achieve about 8-9fps. 
+        The image files are saved to the camera storage device first and must be donwloaded separately.
+        Returns a list of file locations on the camera.
         Only supported in PHOTO mode.
         Input: t=duration in seconds (int or float)
         Outputs: success=boolean, files=list of strings, msg=string
@@ -890,6 +942,7 @@ class EOS(object):
         Record a video for a duration of t seconds.
         Resolution and file formats are set in the camera's menu. Storage medium must be inserted.
         Only supported in VIDEO mode.
+        The video is written to the camera's storage device first and downloaded to the PC afterwards.
         Inputs: t=duration in seconds (int or float), download=boolean, target_path=string
         Output: success=boolean, file_path=string, msg=string
         '''
