@@ -6,6 +6,8 @@ from subprocess import Popen, PIPE
 class EOS(object):
     """
     Interface a Canon EOS R5 C using gphoto2 via USB port.
+
+    Quickstart: Take a look first at the top-level API calls: get_capture_parameters(), capture_image(), capture_video(), and show_live_preview().
     """
 
     def __init__(self, port=None):
@@ -50,6 +52,7 @@ class EOS(object):
         else:
             self.aperture_choices = [2.8, 3.2, 3.5, 4, 4.5, 5, 5.6, 6.3, 7.1, 8, 9, 10, 11, 14, 16, 18, 20, 22, 25, 29, 32] # option 13 is missing
             self.shutter_choices = ['1/50', '1/60', '1/75', '1/90', '1/100', '1/120', '1/150', '1/180','1/210', '1/250', '1/300', '1/360',  '1/420',  '1/500',  '1/600',  '1/720',  '1/840',  '1/1000', '1/1200', '1/1400', '1/1700', '1/2000']
+
 
 
     ''' Universal Methods, work in both PHOTO and VIDEO mode '''
@@ -151,6 +154,7 @@ class EOS(object):
     def get_config(self, config_name=None):
         '''
         Get the current value and all choices of a named configuration, including those not specifically implemented in this class (yet).
+        Input: string, name of the configuration
         Output: tuple (string: current value, list of strings: choices)
         '''
         if type(config_name)==str:
@@ -172,6 +176,9 @@ class EOS(object):
             return None, None
         
     def check_storage_medium(self):
+        '''
+        Check if a supported SD card is inserted and warn the user if not.
+        '''
         if len(list(self.camera.folder_list_folders('/'))) < 1:
             print('No storage medium detected')
             import warnings
@@ -476,6 +483,10 @@ class EOS(object):
         return value, config, ''
 
     def reset_after_abort(self):
+        '''
+        Helper function to reset the camera configuration to a known state after a capture process was aborted.
+        This should prevent the camera from getting stuck in an unknown or unexpected state.
+        '''
         if self.mode == 0: # this refers to the mode at initialisation of this camera, not the current mode
             # The current mode might have been changed by the user, but we want to reset to the initial mode
             self.set_config_fire_and_forget('eosmoviemode', 0)
@@ -785,65 +796,6 @@ class EOS(object):
                 print(error_msg)
                 self.set_config_fire_and_forget(['eosremoterelease'], ['Release Full']) # reset shutter
                 return False, None, error_msg
-    
-    class LiveStreamer:
-        # DRAFT!
-        # A class to provide the liveview feed as a generator
-        # Frames can be piped straight to another process from here
-        # No images are being saved to the camera storage device first.
-
-        def __init__(self, outer_self):
-            self.outer_self = outer_self
-            self.is_streaming = False 
-
-        def start_stream(self):
-            self.is_streaming = True
-            while self.is_streaming:
-                capture = self.outer_self.camera.capture_preview()
-                        # TODO: are these two the same?:
-                                #   capture = gp.check_result(gp.gp_camera_capture_preview(self.camera))
-                                #   capture = self.camera.capture_preview()
-                filedata = capture.get_data_and_size()
-                data = memoryview(filedata)
-                # Yield the frame data for external processing
-                yield data.tobytes()
-
-        def stop_stream(self):
-            self.is_streaming = False
-
-    def record_live_feed(self, target_path ='.'):
-        # DRAFT!
-        # Test function to use the LiveStreamer class 
-        # pipe liveview to ffmpeg to save as video file
-        # also testing an interrupt via button press
-        # there should maybe be different options, including predefined durations
-
-        streamer = self.LiveStreamer(self)
-        stream_generator = streamer.start_stream()
-
-        # Define the function to stop the stream based on a key press
-        def on_key(event):
-            if event.key == 'q':
-                streamer.stop_stream()
-        
-        # now this could be another process too
-        external_process_command = [
-            'ffmpeg', 
-            '-f', 'image2pipe',           # Input format
-            '-vcodec', 'mjpeg',
-            '-i', '-',                    # Input comes from a pipe
-            '-c:v', 'libx264',            # Video codec to use for encoding
-            '-pix_fmt', 'yuvj422p',        # Output pixel format
-            target_file                           # Output file path
-        ]
-        external_process = subprocess.Popen(external_process_command, stdin=subprocess.PIPE)
-        for frame in stream_generator:
-            external_process.stdin.write(frame_data)
-
-        external_process.stdin.close()
-        external_process.wait()
-        return
-
 
     def record_preview_video(self, t=1, target_path ='.', resolution_prio=False):
         '''
@@ -987,5 +939,5 @@ class EOS(object):
 if __name__ == '__main__':
 
     cam1 = EOS()
-    # cam1.live_preview()
+    # cam1.show_live_preview()
     print("Camera initalised")

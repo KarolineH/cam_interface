@@ -27,11 +27,11 @@ current_value, msg = cam1.set_AF_location(1000,500) # target a specific pixel lo
 msg = cam1.trigger_AF()
 
 # Capturing images and video
-success, msg = cam1.capture_preview(target_file='./preview.jpg')
-cam1.live_preview() # start live preview, stop with q
-out_file, msg = cam1.capture_image(download=True, target_file='./image.jpg')
-success, out_file, msg = cam1.record_video(t=1, download=True, target_path='.')
-success, files, msg = cam1.capture_burst(t=1)
+success, msg = cam1.capture_preview(target_file='./preview.jpg') # capture a preview image, i.e. the viewfinder display
+cam1.show_live_preview() # start live preview, stop with q
+out_file, msg = cam1.capture_image(download=True, target_file='./image.jpg') # capture a ful-res image
+success, out_file, msg = cam1.capture_video(t=1, download=True, target_path='.') # capture a video, t is duration in seconds
+success, files, msg = cam1.capture_burst(t=1) # capture a burst of images, t is duration in seconds
 
 # And finally, record full-res video in VIDEO mode
 success, file_path, msg = cam1.record_video(t=1, download=True, target_path='.')
