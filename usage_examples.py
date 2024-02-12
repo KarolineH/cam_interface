@@ -5,8 +5,8 @@ import gphoto_util
 ### USAGE EXAMPLES ###
 
 # Initialise camera
-port = gphoto_util.choose_camera()
-cam1 = EOS(port=port)
+port = gphoto_util.choose_camera() # this is totally optional, useful if you have multiple cameras connected
+cam1 = EOS(port=port) # if you don't specify a port, the first camera found will be used
 
 # Get information about available cmaera configs
 config_names = cam1.list_all_config() # list all

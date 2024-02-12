@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# These are some example commands for using gphoto2 to control a Canon camera over USB directly from the terminal.
+# This is useful for debugging.
+
 # retrieving information 
 gphoto2 --auto-detect # detect available cameras
 gphoto2 --summary # camera information

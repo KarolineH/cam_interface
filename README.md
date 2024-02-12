@@ -7,15 +7,14 @@ This is a python interface for remote controlling one or multiple Canon EOS R5 C
 3. Confirm that all cameras are equipped with SD cards.\
 If the card is new or was previously formatted (initialized) by another camera or computer, it is advised to format the card using the camera's own menu. 
 5. Connect all cameras to the PC via USB.
-6. Turn on all cameras by setting the switches to PHOTO or VIDEO mode.
+6. Turn on all cameras by setting the switches to PHOTO (recommended) or VIDEO mode.
 7. To check if everything is ready, open a terminal and run 'gphoto2 --auto-detect'\
 If any of the cameras are not detected, please refer to gphoto2 documentation. 
 
-We also turn the 'Auto rotate' feature OFF in the camera menu and we mostly use the 'Scene Intelligent Auto' or 'Flexible-priority AE' shooting modes. Please refer to the camera manual for details.
+We also advise to turn the 'Auto rotate' feature OFF in the camera menu (on the camera itself) and we mostly use the 'Scene Intelligent Auto' or 'Flexible-priority AE' shooting modes. Please refer to the camera manual for details.
 
 # Quick start
 After following the set-up instructions, take a look at uage_examples.py, especially the top-level API calls: get_capture_parameters(), capture_image(), capture_video(), and show_live_preview().
-
 
 # Mode selection
 - Use PHOTO mode for capturing stills and also for maximum control over capture parameters, including ISO and autofocus 
