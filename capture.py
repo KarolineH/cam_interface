@@ -52,12 +52,13 @@ class EOS(object):
         else:
             self.aperture_choices = [2.8, 3.2, 3.5, 4, 4.5, 5, 5.6, 6.3, 7.1, 8, 9, 10, 11, 14, 16, 18, 20, 22, 25, 29, 32] # option 13 is missing
             self.shutter_choices = ['1/50', '1/60', '1/75', '1/90', '1/100', '1/120', '1/150', '1/180','1/210', '1/250', '1/300', '1/360',  '1/420',  '1/500',  '1/600',  '1/720',  '1/840',  '1/1000', '1/1200', '1/1400', '1/1700', '1/2000']
-
+        
+        time.sleep(1) # wait for the camera to initialise
 
 
     ''' Universal Methods, work in both PHOTO and VIDEO mode '''
 
-    def set_config_and_confirm(self, config_names, values, timeout=10):
+    def set_config_and_confirm(self, config_names, values, timeout=6):
         '''
         Helper function to set and 'push' a list of new configurations to the camera.
         This function then also fetches the currently active configuration from the camera to confirm that the named configurations have been updated successfully.
@@ -345,6 +346,7 @@ class EOS(object):
                 configs.append(config)
                 values.append(val)
 
+        #self.set_aperture(ap_val)
         success = self.set_config_and_confirm(configs, values)
         msgs += '... Capture parameters set. '
         return msgs
@@ -357,6 +359,7 @@ class EOS(object):
         corrected_value, msg = self.pick_aperture_value(value)
         if corrected_value is None:
             return self.get_aperture(), msg
+        #self.set_config_fire_and_forget('aperture', corrected_value)
         self.set_config_and_confirm(['aperture'], [corrected_value])
         current = self.get_aperture()
         return current, msg
@@ -527,6 +530,7 @@ class EOS(object):
         # Trigger the capture
         success, file_path, msg = self.capture_immediate(download=download, target_path=target_path)
         msgs += msg
+        time.sleep(0.8) # wait a moment to allow the camera to reset after the capture
 
         return file_path, msgs
     
