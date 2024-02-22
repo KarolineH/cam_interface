@@ -42,6 +42,7 @@ class EOS(object):
         if self.mode == 0:
             self.set_exposure_manual() # set the camera's auto-exposure mode to manual, so that shutter, aperture, and iso can be set remotely
             self.set_save_target() # set the camera's save target to the SD card, so that all captures are saved to the SD card by default
+            self.set_capture_parameters(aperture='AUTO', iso='AUTO', shutterspeed='AUTO', c_AF=False) # set the camera to automatic
 
         # set the main capture configuration options for both PHOTO and VIDEO mode
         # These ares specific to the Canon EOS R5 C
